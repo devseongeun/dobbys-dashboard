@@ -1,0 +1,95 @@
+/* 회의 자료 화면. 색은 구현 진행 현황 뷰어(plans_view.html)와 같은 어두운 팔레트다. */
+:root{
+  --bg:#12141a;--card:#191c24;--card2:#1c2029;--line:#2a2f3a;--line2:#222733;
+  --ink:#e7e9ee;--muted:#8b93a7;--dim:#646c80;--acc:#5eead4;--err:#ffc9d4;--warn:#fcd34d;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 -apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo",sans-serif;display:grid;grid-template-columns:280px minmax(0,1fr);overflow:hidden}
+body.previewing{grid-template-columns:280px minmax(0,1fr) minmax(0,1.2fr)}
+body.busy .board{pointer-events:none;opacity:.7}
+[hidden]{display:none!important}
+a{color:var(--acc)}
+button,input,select{font:inherit;color:inherit}
+.btn{background:#232833;border:1px solid var(--line);color:var(--muted);border-radius:99px;padding:3px 11px;font-size:12px;line-height:1.4;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn:hover{color:var(--ink)}
+input[type=text],input[type=url],input[type=date],input[type=search],select{background:#11131a;border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:13px;min-width:0}
+input:focus{outline:1px solid var(--acc);border-color:var(--acc)}
+.side{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line)}
+.side header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.tools{display:flex;gap:6px}
+.list{display:flex;flex-direction:column;max-height:40%;min-height:0}
+.list ul{list-style:none;margin:0;padding:6px;overflow:auto}
+.list li a{display:block;padding:8px 10px;border-radius:8px;color:var(--ink);text-decoration:none}
+.list li a:hover{background:var(--card)}
+.list li.on a{background:var(--card2);box-shadow:inset 0 0 0 1px var(--acc)}
+.list .date{display:block;color:var(--dim);font-size:11.5px}
+.list .name{display:block;overflow-wrap:anywhere}
+.list .badge{margin-top:4px;display:inline-block}
+.tree{display:flex;flex-direction:column;flex:1;min-height:0;border-top:1px solid var(--line)}
+.tree header input{flex:1}
+.tree-body{flex:1;min-height:0;overflow:auto;padding:4px 0;font-size:12.5px}
+.node{padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;user-select:none}
+.node.dir{color:var(--muted);cursor:pointer}
+.node.file{cursor:pointer}
+.node:hover{background:var(--card)}
+.node.file.current{background:var(--card2);box-shadow:inset 2px 0 0 var(--acc);color:var(--acc)}
+.node .sub{display:block;color:var(--dim);font-size:11px;overflow:hidden;text-overflow:ellipsis}
+.hint{margin:0;padding:8px 12px 12px;color:var(--dim);font-size:11.5px;line-height:1.5}
+.inline{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 12px}
+.inline input[name=title],.inline input[name=label],.inline input[name=url]{flex:1 1 140px}
+.bar .inline,.block .inline{padding:0;flex:1}
+.block .inline{margin:4px 0 8px}
+.board,.preview{min-width:0;min-height:0;overflow:auto}
+.preview{display:flex;flex-direction:column;overflow:hidden;border-left:1px solid var(--line)}
+.bar{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:10px;padding:10px 18px;background:rgba(18,20,26,.94);border-bottom:1px solid var(--line)}
+.bar h1,.bar h2{flex:1;min-width:0;margin:0;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.add-to{display:flex;align-items:center;gap:6px;min-width:0}
+.add-to select{max-width:180px;padding:2px 6px;font-size:12px}
+#title{cursor:text}
+#title:hover,.block h2.editable:hover{text-decoration:underline dotted var(--dim)}
+.notice{color:var(--warn);font-size:12px}
+#new-block-slot .inline{padding:12px 18px 0}
+.blocks{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;padding:18px}
+.block{--block:var(--line);background:var(--card);border:1px solid var(--line);border-top:3px solid var(--block);border-radius:10px;padding:12px 14px}
+.block.drop-target{box-shadow:0 0 0 1px var(--acc)}
+.block h2{margin:0 0 8px;font-size:15px}
+.block h2.editable{cursor:text}
+.items{list-style:none;margin:0;padding:0}
+.item{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-top:1px solid var(--line2)}
+.item:first-child{border-top:0}
+.item.dragging{opacity:.4}
+.handle{color:var(--dim);cursor:grab;user-select:none}
+.item .label{flex:1;min-width:0;overflow-wrap:anywhere;color:var(--ink);text-decoration:none}
+.item a.label:hover{color:var(--acc)}
+.item.current .label{color:var(--acc);font-weight:600}
+.item .open{color:var(--dim);text-decoration:none}
+.item .open:hover{color:var(--acc)}
+.item .del{background:none;border:0;color:var(--dim);cursor:pointer;padding:0 2px;font-size:12px}
+.item .del:hover{color:var(--err)}
+.drop-marker{list-style:none;height:0;border-top:2px solid var(--acc);margin:-1px 0}
+.add-link{margin-top:8px}
+.memo{flex:1;min-width:0;color:var(--muted);font-size:13px}
+.memo>:first-child{margin-top:0}.memo>:last-child{margin-bottom:0}
+.badge{border:1px solid var(--line);border-radius:99px;padding:0 8px;font-size:11px;white-space:nowrap}
+.badge.err{color:var(--err);border-color:rgba(255,120,150,.4)}
+.msg{color:var(--muted);padding:10px 4px;margin:0}
+.blocks>.msg{padding:6px 0}
+.msg.err{color:var(--err)}
+.tree-body .msg{padding:6px 12px;font-size:12px}
+.preview-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto}
+.preview-body>.msg{padding:16px 22px}
+.frame{flex:1;width:100%;border:0;background:#fff}
+.doc{padding:16px 22px 60px}
+.md h1,.md h2,.md h3,.md h4{line-height:1.35;margin:1.4em 0 .6em}
+.md h1{font-size:21px;margin-top:.2em}.md h2{font-size:17px;padding-bottom:6px;border-bottom:1px solid var(--line)}.md h3{font-size:15px}
+.md p,.md ul,.md ol,.md blockquote,.md pre,.md table{margin:0 0 .9em}
+.md ul,.md ol{padding-left:1.5em}
+.md code{font:12.5px ui-monospace,SFMono-Regular,Menlo,"D2Coding",monospace;background:#1f232c;border:1px solid var(--line2);border-radius:4px;padding:0 4px}
+.md pre{background:#161920;border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow:auto;white-space:pre-wrap}
+.md pre code{background:none;border:0;padding:0}
+.md blockquote{border-left:3px solid var(--line);margin-left:0;padding:2px 0 2px 14px;color:var(--muted)}
+.md table{display:block;overflow:auto;border-collapse:collapse;font-size:12.5px}
+.md th,.md td{border:1px solid var(--line);padding:5px 9px;text-align:left;vertical-align:top}
+.md th{background:var(--card2);color:var(--muted)}
+.md .embed{color:var(--dim);font-style:italic}

@@ -56,9 +56,9 @@ TAB = Tab(
         Field("workbook", "WBS 엑셀 파일", "file", required=True, help="팀 WBS .xlsx 파일."),
         Field("owner", "담당자 이름", "text", required=True, help="엑셀 '담당자' 열에 적힌 내 이름. '이름 외 N명' 행도 포함한다."),
         Field("sheet", "시트 이름", "text", default=DEFAULT_SHEET),
-        Field("jira_domain", "Jira 도메인", "text", default="example.atlassian.net",
-              help="Jira 연동은 선택이다. 로그인은 탭 안에서 한다."),
-        Field("jira_project", "Jira 프로젝트 키", "text", default="PROJ"),
+        Field("jira_domain", "Jira 도메인", "text", required=True,
+              help="예: yourcompany.atlassian.net. 로그인은 탭 안에서 한다."),
+        Field("jira_project", "Jira 프로젝트 키", "text", required=True, help="예: PROJ"),
     ),
     build=_build, validate=_validate,
 )

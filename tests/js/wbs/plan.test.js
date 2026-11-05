@@ -7,7 +7,7 @@ import {
 
 const ROW = {
   key: "PROJ-1131", name: "티켓 - 티켓 관리 - 단위 테스트", domain: "티켓", status: "할 일",
-  statusCategory: "해야 할 일", assignee: "박지수", start: "2026-11-09", end: "2026-11-11",
+  statusCategory: "해야 할 일", assignee: "이영희", start: "2026-11-09", end: "2026-11-11",
   duedate: "2026-11-11", schedulable: true, overdue: false, people: 1, dday: 12,
 };
 const MINE = {
@@ -43,11 +43,11 @@ test("원래 일정·담당자로 되돌리면 초안이 사라지고, 담당만
   expect(handed["PROJ-1131"]).toEqual({ start: ROW.start, end: ROW.end, assignee: "홍길동", confirmedAt: null });
   const handedAndMoved = setDraft(handed, ROW, { start: "2026-11-12", end: "2026-11-16" });
   expect(handedAndMoved["PROJ-1131"].assignee).toBe("홍길동");
-  expect(setDraft(handed, ROW, { assignee: "박지수" })).toEqual({});
+  expect(setDraft(handed, ROW, { assignee: "이영희" })).toEqual({});
 });
 
 test("[확인]은 목록 전체에 시각을 남기고, 다시 누르면 전부 풀리며, 확인 뒤 추가·변경분이 있으면 전부 다시 확인한다", () => {
-  const two = setDraft(setDraft({}, ROW, { start: "2026-11-12", end: "2026-11-16" }), MINE, { assignee: "박지수" });
+  const two = setDraft(setDraft({}, ROW, { start: "2026-11-12", end: "2026-11-16" }), MINE, { assignee: "이영희" });
   const keys = ["PROJ-1131", "PROJ-1392"];
   const checked = toggleConfirmAll(two, keys, "2026-10-30T11:10");
   expect(keys.map((k) => checked[k].confirmedAt)).toEqual(["2026-10-30T11:10", "2026-10-30T11:10"]);
@@ -89,11 +89,11 @@ test("applyDrafts 는 Jira 원본 행을 바꾸지 않고 변경 전 일정·담
   const rows = [ROW];
   const [planned] = applyDrafts(rows,
     { "PROJ-1131": { start: "2026-11-12", end: "2026-11-16", assignee: "홍길동" } }, T);
-  expect(planned.orig).toEqual({ start: "2026-11-09", end: "2026-11-11", assignee: "박지수" });
+  expect(planned.orig).toEqual({ start: "2026-11-09", end: "2026-11-11", assignee: "이영희" });
   expect(planned.assignee).toBe("홍길동");
   expect(planned.dday).toBe(17);
   expect(rows[0]).toBe(ROW);
-  expect(ROW.assignee).toBe("박지수");
+  expect(ROW.assignee).toBe("이영희");
   expect(ROW.start).toBe("2026-11-09");
 
   const [handOnly] = applyDrafts(rows, { "PROJ-1131": { start: ROW.start, end: ROW.end, assignee: "홍길동" } }, T);
@@ -117,7 +117,7 @@ test("클립보드 문구는 담당자·작업 기간·마감일을 기존→변
     "   마감일: 10/30(금) → 11/02(월)",
     "",
     "2. PROJ-1131 티켓 - 티켓 관리 - 단위 테스트",
-    "   담당자: 박지수 → 홍길동",
+    "   담당자: 이영희 → 홍길동",
     "   작업 기간: 11/09(월) ~ 11/11(수) → 11/12(목) ~ 11/16(월)",
     "   마감일: 11/11(수) → 11/16(월)",
   ].join("\n"));
@@ -129,7 +129,7 @@ test("클립보드 문구는 담당자·작업 기간·마감일을 기존→변
 
 test("변경 목록은 담당 변경과 날짜 입력 칸을 보여준다", () => {
   const html = renderChanges(changeList([ROW], { "PROJ-1131": { start: ROW.start, end: ROW.end, assignee: "홍길동" } }), T);
-  expect(html).toContain('<span class="was">박지수</span>');
+  expect(html).toContain('<span class="was">이영희</span>');
   expect(html).toContain('data-field="assignee" data-draft="PROJ-1131" value="홍길동"');
   expect(html).toContain('data-field="start" data-draft="PROJ-1131" value="2026-11-09"');
   expect(html).toContain('data-field="end" data-draft="PROJ-1131" value="2026-11-11"');
@@ -137,12 +137,12 @@ test("변경 목록은 담당 변경과 날짜 입력 칸을 보여준다", () =
 
 test("내 이슈를 남에게 넘기는 변경도 같은 형식으로 적힌다", () => {
   const mine = { ...MINE, key: "PROJ-1112", name: "공통 - 헤더 영역 - 나의 할 일 - 티켓 진행 이력", start: "2026-11-23", end: "2026-11-24" };
-  const drafts = setDraft({}, mine, { assignee: "박지수" });
+  const drafts = setDraft({}, mine, { assignee: "이영희" });
   expect(formatChanges(changeList([mine], drafts), T)).toBe([
     "[일정 변경 요청] 2026-10-30 기준 · 1건",
     "",
     "1. PROJ-1112 공통 - 헤더 영역 - 나의 할 일 - 티켓 진행 이력",
-    "   담당자: 홍길동 → 박지수",
+    "   담당자: 홍길동 → 이영희",
     "   작업 기간: 11/23(월) ~ 11/24(화) (변경 없음)",
     "   마감일: 11/24(화) (변경 없음)",
   ].join("\n"));
@@ -193,14 +193,14 @@ test("일정 조정 탭은 변경 막대·점선 기존 막대·담당 변경 �
   const html = renderCalendar(planned, {}, T, {}, { edit: true });
   expect(html).toContain('data-date="2026-11-12"');
   expect(html).toContain("bar ghost");
-  expect(html).toContain('<span class="ho">박지수→홍길동</span>');
+  expect(html).toContain('<span class="ho">이영희→홍길동</span>');
   expect(html).toMatch(/editable is-draft" style="[^"]*" data-key="PROJ-1131"/);
   expect(html).not.toMatch(/editable[^"]*" style="[^"]*" data-key="PROJ-1104"/);
 
   const handOnly = applyDrafts([ROW], { "PROJ-1131": { start: ROW.start, end: ROW.end, assignee: "홍길동" } }, T);
   const html2 = renderCalendar(handOnly, {}, T, {}, { edit: true });
   expect(html2).not.toContain("bar ghost");
-  expect(html2).toContain('<span class="ho">박지수→홍길동</span>');
+  expect(html2).toContain('<span class="ho">이영희→홍길동</span>');
 });
 
 test("setDraft 는 WBS 행의 taskId 를 초안에 남기고 parseDrafts 가 보존한다", () => {

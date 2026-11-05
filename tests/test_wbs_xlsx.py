@@ -8,7 +8,7 @@ from tabs.wbs.xlsx import WbsSource, XlsxError, read_wbs
 from tests.support_xlsx import SHEET, make_xlsx, wbs_book
 
 ROW = {"pri": "P3", "weight": 4, "stage": "선행", "id": "TRBQ-CHM-037", "d1": "테스트", "d2": "테스트 의뢰 관리",
-       "name": "테스트 의뢰 목록", "detail": "변경 없음", "gubun": "유지", "screen": "TST-0100-01", "mgr": "장덕상",
+       "name": "테스트 의뢰 목록", "detail": "변경 없음", "gubun": "유지", "screen": "TST-0100-01", "mgr": "김철수",
        "owner": "홍길동", "people": 1, "start": 46282, "end": 46323, "md": 1}
 
 
@@ -23,7 +23,7 @@ class ReadWbsTest(unittest.TestCase):
         data = read_wbs(self.book([ROW]), SHEET, "홍길동")
         self.assertEqual(data["tasks"], [{
             "id": "TRBQ-CHM-037", "pri": "P3", "weight": 4, "stage": "선행", "d1": "테스트", "d2": "테스트 의뢰 관리",
-            "d3": None, "name": "테스트 의뢰 목록", "gubun": "유지", "screen": "TST-0100-01", "mgr": "장덕상",
+            "d3": None, "name": "테스트 의뢰 목록", "gubun": "유지", "screen": "TST-0100-01", "mgr": "김철수",
             "owner": "홍길동", "people": 1, "start": "2026-09-17", "end": "2026-10-28", "md": 1, "q": None,
             "detail": "변경 없음", "jira": None,
         }])
@@ -36,10 +36,10 @@ class ReadWbsTest(unittest.TestCase):
 
     def test_owner_filter_includes_group_rows_and_excludes_similar_names(self):
         rows = [{**ROW, "id": "A-1", "owner": "홍길동 외 4명"}, {**ROW, "id": "A-2", "owner": "홍길동"},
-                {**ROW, "id": "A-3", "owner": "박지수"}, {**ROW, "id": "A-4", "owner": "홍길동2"}]
+                {**ROW, "id": "A-3", "owner": "이영희"}, {**ROW, "id": "A-4", "owner": "홍길동2"}]
         self.assertEqual([t["id"] for t in read_wbs(self.book(rows), SHEET, " 홍길동 ")["tasks"]], ["A-1", "A-2"])
         with self.assertRaises(XlsxError) as caught:
-            read_wbs(self.book(rows), SHEET, "김성")
+            read_wbs(self.book(rows), SHEET, "홍길")
         self.assertEqual(caught.exception.field, "owner")
 
     def test_missing_holiday_sheet_is_empty(self):

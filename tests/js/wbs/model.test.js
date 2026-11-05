@@ -110,8 +110,8 @@ test("recentWorklogs 는 최신순 n건을 준다", () => {
 });
 
 test("담당자가 행에 담긴다", () => {
-  const rows = joinRows(WBS, [{ ...ISSUES[0], assignee: "장덕상" }], "2026-09-28");
-  expect(rows[0].assignee).toBe("장덕상");
+  const rows = joinRows(WBS, [{ ...ISSUES[0], assignee: "김철수" }], "2026-09-28");
+  expect(rows[0].assignee).toBe("김철수");
 });
 
 test("Jira 키가 없는 WBS 행은 요구사항ID 가 행 키고 jiraKey 는 null", () => {

@@ -10,7 +10,7 @@
 
 사용:
   평소에는 업무 대시보드(projects/work/work-dashboard, http://127.0.0.1:8787/#plans)가 make_handler 를 /plans/ 아래에 올린다.
-  스크립트·뷰어를 고친 뒤에는 `launchctl kickstart -k gui/$(id -u)/com.seongeun.work-dashboard` 로 대시보드를 재시작한다.
+  스크립트·뷰어를 고친 뒤에는 `launchctl kickstart -k gui/$(id -u)/com.dobbys-dashboard` 로 대시보드를 재시작한다.
 """
 import json
 import sys

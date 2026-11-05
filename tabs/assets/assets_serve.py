@@ -10,8 +10,8 @@
 사용:
   평소에는 업무 대시보드(projects/work/work-dashboard, http://127.0.0.1:8787/#assets)가 이 모듈의 make_handler 를 /assets/ 아래에 올린다.
 
-상주: 업무 대시보드 launchd `com.seongeun.work-dashboard`. 이 스크립트 단독 상주(`com.seongeun.trb-assets`)는 2026-11-03 에 내렸다.
-  스크립트(템플릿 포함)를 고친 뒤에는 `launchctl kickstart -k gui/$(id -u)/com.seongeun.work-dashboard` 로 재시작한다. 상주 프로세스는 옛 코드를 메모리에 들고 있다.
+상주: 업무 대시보드 launchd `com.dobbys-dashboard`.
+  스크립트(템플릿 포함)를 고친 뒤에는 `launchctl kickstart -k gui/$(id -u)/com.dobbys-dashboard` 로 재시작한다. 상주 프로세스는 옛 코드를 메모리에 들고 있다.
 """
 import json
 import sys

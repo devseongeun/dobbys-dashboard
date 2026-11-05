@@ -213,11 +213,11 @@ class BoardServiceTest(unittest.TestCase):
     def test_lookup_reads_other_assignees_issue_without_touching_cache(self):
         raw = json.loads(json.dumps(RAW_ISSUE))
         raw["key"] = "PROJ-1131"
-        raw["fields"]["assignee"] = {"displayName": "박지수"}
+        raw["fields"]["assignee"] = {"displayName": "이영희"}
         client = FakeClient([raw])
         result = BoardService(FakeSession(client), "PROJ", lambda: [], cache_path=self.cache).lookup(["PROJ-1131"])
         self.assertIsNone(result["error"])
-        self.assertEqual(result["issues"][0]["assignee"], "박지수")
+        self.assertEqual(result["issues"][0]["assignee"], "이영희")
         self.assertEqual(result["issues"][0]["duedate"], "2026-10-01")
         self.assertEqual(client.jqls, ["key in (PROJ-1131) ORDER BY duedate ASC"])
         self.assertFalse(self.cache.exists())

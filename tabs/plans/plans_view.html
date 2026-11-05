@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>계획 보기 · 10-plans</title>
+<title>계획 보기</title>
 <!-- 구현 진행 현황 md 뷰어. plans_serve.py 가 /view.html 로 준다. 원문은 raw/<파일명>, 렌더러는 marked(vendor/marked.umd.js). 읽기 전용이다. -->
 <style>
 :root{
@@ -164,6 +164,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.7 -apple-system,
     if (state) box.appendChild(chip(LABELS[state], state));
     else if (meta.status) box.appendChild(chip("status: " + meta.status));
     if (meta.progress) box.appendChild(chip("진행률 " + meta.progress.replace(/%$/, "") + "%"));
+    (meta.feature || "").replace(/^\[|\]$/g, "").split(",").map((f) => f.trim().replace(/^["']|["']$/g, "")).filter(Boolean)
+      .forEach((f) => box.appendChild(chip(f)));
     const boxes = [...doc.querySelectorAll("li.task input[type=checkbox]")];
     if (boxes.length) {
       const checked = boxes.filter((b) => b.checked).length;
@@ -181,7 +183,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.7 -apple-system,
     $("meta").replaceChildren();
     if (!name) { doc.innerHTML = '<p class="msg err">열 계획 파일명이 없다. 목록에서 계획을 누른다.</p>'; return; }
     $("title").textContent = name.replace(/\.md$/, "");
-    document.title = name.replace(/\.md$/, "") + " · 10-plans";
+    document.title = name.replace(/\.md$/, "") + " · 계획 보기";
     try {
       const res = await fetch("raw/" + encodeURIComponent(name), { cache: "no-store" });
       if (!res.ok) throw new Error(res.status === 404 ? "파일이 없거나 열 수 없는 경로다" : "HTTP " + res.status);

@@ -35,8 +35,8 @@ class ReadPlanTest(unittest.TestCase):
         self.dir = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.warnings = []
 
-    def read(self, name, text, features=None):
-        return plans_index.read(write(self.dir, name, text), features or {}, self.warnings)
+    def read(self, name, text):
+        return plans_index.read(write(self.dir, name, text), self.warnings)
 
     def test_checkboxes_skip_fenced_code_and_flag_done_with_open_items(self):
         plan = self.read("2026-11-01 계획.md", DONE_WITH_OPEN)
@@ -70,27 +70,31 @@ class ReadPlanTest(unittest.TestCase):
         plan = self.read("2026-10-19 d.md", "---\nstatus: 진행중\nprogress: 140\n---\n")
         self.assertEqual(plan["progress"], 100)
 
+    def test_feature_spellings_map_to_one_list(self):
+        for raw in ("외부 결재, 배포", "[외부 결재, 배포]", '["외부 결재", "배포"]'):
+            plan = self.read("2026-10-19 e.md", f"---\nfeature: {raw}\n---\n")
+            self.assertEqual(plan["features"], ["외부 결재", "배포"], raw)
+        self.assertEqual(self.read("2026-10-19 f.md", "---\nfeature:\n---\n")["features"], ["미분류"])
+
 
 class SyncTest(unittest.TestCase):
     def setUp(self):
         self.dir = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        write(self.dir, "00_10-plans_기능구분.md",
-              "| 파일 | 기능 구분 |\n| --- | --- |\n| 2026-11-01 매핑됨.md | 외부 결재, 배포 |\n| 2026-01-01 지워진 계획.md | 배포 |\n")
-        write(self.dir, "2026-11-01 매핑됨.md", "---\nstatus: 진행중\nprogress: 40\n---\n- [x] a\n- [ ] b\n")
+        self.md, self.html = f"00_{self.dir.name}_목록.md", f"00_{self.dir.name}_목록.html"
+        write(self.dir, "2026-11-01 매핑됨.md", "---\nstatus: 진행중\nprogress: 40\nfeature: 외부 결재, 배포\n---\n- [x] a\n- [ ] b\n")
         write(self.dir, "2026-11-02 매핑없음.md", "---\nstatus: 할 일\n---\n")
-        write(self.dir, "2026-11-01 매핑됨 부속/report.md", "---\nstatus: 완료\n---\n")
+        write(self.dir, "2026-11-01 매핑됨 부속/report.md", "---\nstatus: 완료\nfeature: 배포\n---\n")
 
-    def test_sync_lists_top_level_plans_and_warns_on_mapping_gaps(self):
+    def test_sync_lists_top_level_plans_and_warns_on_missing_feature(self):
         result = plans_index.sync(self.dir)
         self.assertEqual(result["counts"], {"todo": 1, "doing": 1, "done": 0, "ref": 0, "mismatch": 0})
-        self.assertEqual(len(result["warnings"]), 2)
-        self.assertTrue(any("매핑없음" in w for w in result["warnings"]))
-        self.assertTrue(any("지워진 계획" in w for w in result["warnings"]))
-        md = (self.dir / "00_10-plans_목록.md").read_text(encoding="utf-8")
+        self.assertEqual(len(result["warnings"]), 1)
+        self.assertIn("매핑없음", result["warnings"][0])
+        md = (self.dir / self.md).read_text(encoding="utf-8")
         self.assertIn("| 외부 결재, 배포 | [[2026-11-01 매핑됨.md\\|매핑됨]] | 40% | 1/2 |", md)
         self.assertIn("| 미분류 | [[2026-11-02 매핑없음.md\\|매핑없음]] |", md)
         self.assertNotIn("report", md)
-        html = (self.dir / "00_10-plans_목록.html").read_text(encoding="utf-8")
+        html = (self.dir / self.html).read_text(encoding="utf-8")
         self.assertIn('href="view.html#2026-11-01%20%EB%A7%A4%ED%95%91%EB%90%A8.md"', html)
         self.assertIn('data-features="외부 결재|배포"', html)
         for text in (md, html):
@@ -98,8 +102,8 @@ class SyncTest(unittest.TestCase):
             self.assertNotIn("scripts/", text)
 
     def test_check_mode_reports_stale_without_writing(self):
-        self.assertEqual(plans_index.sync(self.dir, check=True)["stale"], ["00_10-plans_목록.md", "00_10-plans_목록.html"])
-        self.assertFalse((self.dir / "00_10-plans_목록.md").exists())
+        self.assertEqual(plans_index.sync(self.dir, check=True)["stale"], [self.md, self.html])
+        self.assertFalse((self.dir / self.md).exists())
         plans_index.sync(self.dir)
         self.assertEqual(plans_index.sync(self.dir, check=True)["stale"], [])
 

@@ -1,4 +1,4 @@
-"""의사결정 현황 탭. 90-assets 폴더 바로 아래 HTML 문서를 TRB 문서 규약대로 목록으로 만든다."""
+"""의사결정 현황 탭. 설정한 폴더 바로 아래 HTML 문서(문의 현황 표·feature/created meta)를 목록으로 만든다."""
 from __future__ import annotations
 
 import functools
@@ -18,12 +18,13 @@ def _build(settings: dict, state_dir: Path) -> Mount:
     first = syncer.run()
     if not first["ok"]:
         print(f"[WARN] assets 기동 동기화 실패: {first['error']}", file=sys.stderr)
-    return Mount("assets", make_handler(syncer, folder, assets_index_html.HTML_NAME))
+    return Mount("assets", make_handler(syncer, folder, assets_index_html.html_name(folder)))
 
 
 TAB = Tab(
     "assets", "의사결정 현황", "🗂️",
-    (Field("folder", "90-assets 폴더", "dir", required=True,
-           help="의사결정 HTML 문서와 00_90-assets_기능구분.md 가 있는 폴더."),),
+    (Field("folder", "의사결정 문서 폴더", "dir", required=True,
+           help="회신을 기다리는 문의·확인 요청 HTML과 참고 문서(설명·분석·설계·점검표)가 있는 폴더. "
+                "기능 구분·작성일은 각 HTML <head>의 <meta name=\"feature\">·<meta name=\"created\">에서 읽는다. 예: …/90-assets"),),
     build=_build,
 )

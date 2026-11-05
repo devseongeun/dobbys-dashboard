@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""90-assets 목록 HTML 생성기.
+"""의사결정 문서 목록 HTML 생성기.
 
-`00_90-assets_목록.md`(원본)를 읽어 `00_90-assets_목록.html`을 다시 쓴다.
+`00_<폴더명>_목록.md`(원본)를 읽어 `00_<폴더명>_목록.html`을 다시 쓴다.
 - md의 `## 진행 중 (n)` / `## 종결 (n)` / `## 참고 (n)` 구역과 표만 읽는다. HTML 문서를 직접 열지 않는다.
 - 탭(진행 중·종결·참고), 기능 구분 필터, 검색은 파일 안 JS로 동작한다(외부 의존 없음).
 - 생성 시각을 넣지 않는다. 같은 md면 같은 HTML이 나와야 `assets_index.sync(folder, check=True)`가 안정적이다.
@@ -13,7 +13,13 @@ import re
 from pathlib import Path
 from urllib.parse import quote
 
-HTML_NAME = "00_90-assets_목록.html"
+from dashboard.paths import PORT
+
+SERVE_URL = f"http://127.0.0.1:{PORT}/"
+
+
+def html_name(folder: Path) -> str:
+    return f"00_{folder.name}_목록.html"
 
 SECTIONS = {"진행 중": "open", "종결": "closed", "참고": "ref"}
 SECTION = re.compile(r"^## (진행 중|종결|참고) \((\d+)\)$")
@@ -152,7 +158,7 @@ def stat(title: str, value: str, sub: str, attr: str = "") -> str:
     return f'<div class="st"{attr}><span>{esc(title)}</span><b>{esc(value)}</b><span>{esc(sub)}</span></div>'
 
 
-def render_html(md: str) -> str:
+def render_html(md: str, folder: Path) -> str:
     sections = parse(md)
     empty = {"label": "", "count": 0, "note": "", "rows": []}
     opened = sections.get("open", {**empty, "label": "진행 중"})
@@ -179,12 +185,13 @@ def render_html(md: str) -> str:
     )
     panels = "".join(section_html(k, s) for k, s in ordered)
     return fill(PAGE, {
-        "TITLE": "TRB 4.0.0 · 90-assets 의사결정 현황",
+        "TITLE": f"의사결정 현황 · {folder.name}",
         "SEARCH": "전체 검색 (진행 중·종결·참고)",
         "API": "api/assets",
         "SHELL": "assets",
+        "SERVE": SERVE_URL,
         "NORES": "진행 중·종결·참고 어디에도 맞는 문서가 없다.",
-        "SRC": "자동 생성 파일이다. 원본은 <code>00_90-assets_목록.md</code>이고, 대시보드 화면의 ⟳ 새로고침으로 다시 만든다.",
+        "SRC": f"자동 생성 파일이다. 원본은 <code>{esc(folder.name)}/*.html</code>의 문의 현황 표·<code>&lt;meta name=\"feature\"&gt;</code>·<code>&lt;meta name=\"created\"&gt;</code>이고, 대시보드 화면의 ⟳ 새로고침으로 다시 만든다.",
         "STYLE": STYLE, "SCRIPT": SCRIPT,
         "STATS": stats, "TABS": tabs, "CHIPS": chips, "PANELS": panels,
     })
@@ -272,7 +279,7 @@ PAGE = """<!doctype html>
 <style>
 {{STYLE}}</style>
 </head>
-<body data-api="{{API}}" data-shell="{{SHELL}}">
+<body data-api="{{API}}" data-shell="{{SHELL}}" data-serve="{{SERVE}}">
 <div class="wrap">
   <header class="top">
     <div class="title">
@@ -282,7 +289,7 @@ PAGE = """<!doctype html>
     <div class="sync">
       <span id="synced" class="dim"></span>
       <button id="refresh" class="f">⟳ 새로고침</button>
-      <a id="serve" class="f hidden" href="http://127.0.0.1:8787/#{{SHELL}}" title="대시보드(serve.py)에서 연다">서버에서 열기 ↗</a>
+      <a id="serve" class="f hidden" href="{{SERVE}}#{{SHELL}}" title="대시보드(serve.py)에서 연다">서버에서 열기 ↗</a>
     </div>
   </header>
 
@@ -304,7 +311,7 @@ PAGE = """<!doctype html>
 # 탭 목록은 화면의 .tab에서 읽고, 첫 탭이 기본이다.
 SCRIPT = """(() => {
   const TABS = [...document.querySelectorAll(".tab")].map((t) => t.dataset.tab);
-  const { api: API, shell: SHELL } = document.body.dataset;
+  const { api: API, shell: SHELL, serve: SERVE } = document.body.dataset;
   const served = location.protocol === "http:" || location.protocol === "https:";
   const $ = (id) => document.getElementById(id);
   const panels = [...document.querySelectorAll(".panel")];
@@ -362,7 +369,7 @@ SCRIPT = """(() => {
       tab.setAttribute("aria-selected", String(!all && key === state.tab));
     });
     $("nores").hidden = !all || total > 0;
-    $("serve").href = "http://127.0.0.1:8787/#" + SHELL + "/" + toHash().slice(1);
+    $("serve").href = SERVE + "#" + SHELL + "/" + toHash().slice(1);
     history.replaceState(null, "", location.pathname + location.search + toHash());
   };
 
@@ -416,8 +423,8 @@ SCRIPT = """(() => {
 
 def sync(md: str, check: bool, folder: Path) -> bool:
     """HTML이 md와 일치하면 True. check가 아니면 다르면 다시 쓴다."""
-    content = render_html(md)
-    output = folder / HTML_NAME
+    content = render_html(md, folder)
+    output = folder / html_name(folder)
     current = output.read_text(encoding="utf-8") if output.exists() else ""
     if current == content:
         return True

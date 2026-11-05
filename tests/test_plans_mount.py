@@ -38,4 +38,4 @@ class PlansMountTest(unittest.TestCase):
     def test_api_resyncs_the_configured_folder(self):
         status, _, body = self.get("/plans/api/plans?refresh=1")
         self.assertEqual((status, json.loads(body)["counts"]["doing"]), (200, 1))
-        self.assertTrue((self.folder / "00_10-plans_목록.html").exists())
+        self.assertTrue((self.folder / f"00_{self.folder.name}_목록.html").exists())

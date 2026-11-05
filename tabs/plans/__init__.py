@@ -1,4 +1,4 @@
-"""구현 진행 현황 탭. 10-plans 폴더 바로 아래 계획 md 의 frontmatter status·progress 와 체크박스를 모은다."""
+"""구현 진행 현황 탭. 설정한 폴더 바로 아래 계획 md 의 frontmatter status·progress·feature 와 체크박스를 모은다."""
 from __future__ import annotations
 
 import functools
@@ -19,12 +19,12 @@ def _build(settings: dict, state_dir: Path) -> Mount:
     first = syncer.run()
     if not first["ok"]:
         print(f"[WARN] plans 기동 동기화 실패: {first['error']}", file=sys.stderr)
-    return Mount("plans", make_handler(syncer, folder, plans_index_html.HTML_NAME))
+    return Mount("plans", make_handler(syncer, folder, plans_index_html.html_name(folder)))
 
 
 TAB = Tab(
     "plans", "구현 진행 현황", "🛠️",
-    (Field("folder", "10-plans 폴더", "dir", required=True,
-           help="계획 md(frontmatter status·progress)와 00_10-plans_기능구분.md 가 있는 폴더."),),
+    (Field("folder", "구현 계획 폴더", "dir", required=True,
+           help="계획 md가 쌓이는 폴더. 파일명은 'YYYY-MM-DD 제목.md', frontmatter status·progress·feature 를 읽는다. 예: …/10-plans"),),
     build=_build,
 )

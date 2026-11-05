@@ -1,6 +1,6 @@
-"""10-plans 목록 HTML 생성기 (구현 진행 현황 화면).
+"""구현 계획 목록 HTML 생성기 (구현 진행 현황 화면).
 
-`plans_index.py`가 모은 계획 데이터로 `00_10-plans_목록.html`을 다시 쓴다.
+`plans_index.py`가 모은 계획 데이터로 `00_<폴더명>_목록.html`을 다시 쓴다.
 - 뼈대·스타일·탭/기능 구분/검색 스크립트는 의사결정 현황(`assets_index_html.py`)의 PAGE·STYLE·SCRIPT를 그대로 쓴다.
 - 계획 링크는 `view.html#<파일명>`(md 뷰어, `plans_serve.py`가 준다)이다. 그래서 서버(대시보드 `/plans/`)에서 열어야 링크가 동작한다.
 - 생성 시각을 넣지 않는다. 같은 데이터면 같은 HTML이 나와야 `plans_index.sync(folder, check=True)`가 안정적이다.
@@ -8,9 +8,12 @@
 from pathlib import Path
 from urllib.parse import quote
 
-from ..assets.assets_index_html import PAGE, SCRIPT, STYLE, esc, fill, groups, stat
+from ..assets.assets_index_html import PAGE, SCRIPT, SERVE_URL, STYLE, esc, fill, groups, stat
 
-HTML_NAME = "00_10-plans_목록.html"
+
+def html_name(folder: Path) -> str:
+    return f"00_{folder.name}_목록.html"
+
 
 TABS = (("doing", "진행 중"), ("todo", "할 일"), ("done", "완료"), ("ref", "참고"))
 
@@ -85,7 +88,7 @@ def panel(key: str, label: str, rows: list) -> str:
     )
 
 
-def render_html(sections: dict) -> str:
+def render_html(sections: dict, folder: Path) -> str:
     doing = sections["doing"]
     known = [p["progress"] for p in doing if p["progress"] is not None]
     average = f"평균 진행률 {round(sum(known) / len(known))}%" if known else "진행률 없음"
@@ -108,12 +111,13 @@ def render_html(sections: dict) -> str:
     )
     panels = "".join(panel(key, label, sections[key]) for key, label in TABS)
     return fill(PAGE, {
-        "TITLE": "TRB 4.0.0 · 10-plans 구현 진행 현황",
+        "TITLE": f"구현 진행 현황 · {folder.name}",
         "SEARCH": "전체 검색 (진행 중·할 일·완료·참고)",
         "API": "api/plans",
         "SHELL": "plans",
+        "SERVE": SERVE_URL,
         "NORES": "진행 중·할 일·완료·참고 어디에도 맞는 계획이 없다.",
-        "SRC": "자동 생성 파일이다. 원본은 <code>10-plans/*.md</code> frontmatter·체크박스와 <code>00_10-plans_기능구분.md</code>이고, 대시보드 화면의 ⟳ 새로고침으로 다시 만든다. 계획을 누르면 md 뷰어가 열린다(서버에서 열었을 때).",
+        "SRC": f"자동 생성 파일이다. 원본은 <code>{esc(folder.name)}/*.md</code>의 frontmatter(<code>status</code>·<code>progress</code>·<code>feature</code>)와 체크박스이고, 대시보드 화면의 ⟳ 새로고침으로 다시 만든다. 계획을 누르면 md 뷰어가 열린다(서버에서 열었을 때).",
         "STYLE": STYLE + EXTRA_STYLE, "SCRIPT": SCRIPT,
         "STATS": stats, "TABS": tabs, "CHIPS": chips, "PANELS": panels,
     })
@@ -121,8 +125,8 @@ def render_html(sections: dict) -> str:
 
 def sync(sections: dict, check: bool, folder: Path) -> bool:
     """HTML이 데이터와 일치하면 True. check가 아니면 다르면 다시 쓴다."""
-    content = render_html(sections)
-    output = folder / HTML_NAME
+    content = render_html(sections, folder)
+    output = folder / html_name(folder)
     current = output.read_text(encoding="utf-8") if output.exists() else ""
     if current == content:
         return True

@@ -1,6 +1,7 @@
 import tempfile
 import time
 import unittest
+import zipfile
 from pathlib import Path
 
 from tabs.wbs.xlsx import WbsSource, XlsxError, read_wbs
@@ -61,6 +62,29 @@ class ReadWbsTest(unittest.TestCase):
         with self.assertRaises(XlsxError) as caught:
             read_wbs(path, SHEET, "홍길동")
         self.assertEqual(caught.exception.field, "workbook")
+
+    def truncated(self, member):
+        src = self.book([ROW])
+        out = self.dir / "broken.xlsx"
+        with zipfile.ZipFile(src) as zin, zipfile.ZipFile(out, "w") as zout:
+            for info in zin.infolist():
+                data = zin.read(info)
+                zout.writestr(info, data[: len(data) // 2] if info.filename == member else data)
+        return out
+
+    def test_truncated_sheet_xml_is_a_workbook_error(self):
+        with self.assertRaises(XlsxError) as caught:
+            read_wbs(self.truncated("xl/worksheets/sheet1.xml"), SHEET, "홍길동")
+        self.assertEqual(caught.exception.field, "workbook")
+
+    def test_truncated_shared_strings_is_a_workbook_error(self):
+        with self.assertRaises(XlsxError) as caught:
+            read_wbs(self.truncated("xl/sharedStrings.xml"), SHEET, "홍길동")
+        self.assertEqual(caught.exception.field, "workbook")
+
+    def test_huge_date_serial_becomes_none(self):
+        data = read_wbs(self.book([{**ROW, "start": 99999999}]), SHEET, "홍길동")
+        self.assertIsNone(data["tasks"][0]["start"])
 
 
 class WbsSourceTest(unittest.TestCase):

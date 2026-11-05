@@ -9,6 +9,7 @@ import re
 import threading
 import xml.etree.ElementTree as ET
 import zipfile
+import zlib
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -25,6 +26,9 @@ HEADERS = {
 REQUIRED = ("id", "name", "owner", "start", "end")
 CELL_REF = re.compile(r"^([A-Z]+)\d+$")
 ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+BROKEN = (KeyError, IndexError, ValueError, zipfile.BadZipFile, zlib.error, EOFError, ET.ParseError, OSError)
 
 
 class XlsxError(ValueError):
@@ -68,7 +72,12 @@ def _date(value: str | None) -> str | None:
     if ISO_DATE.match(value):
         return value
     num = _number(value)
-    return None if num is None else (EXCEL_EPOCH + timedelta(days=int(num))).isoformat()
+    if num is None:
+        return None
+    try:
+        return (EXCEL_EPOCH + timedelta(days=int(num))).isoformat()
+    except (OverflowError, ValueError):
+        return None
 
 
 def _owned(value: str | None, owner: str) -> bool:
@@ -80,9 +89,19 @@ class Workbook:
     def __init__(self, path: Path):
         try:
             self._zip = zipfile.ZipFile(path)
+        except BROKEN as exc:
+            raise XlsxError("workbook", "xlsx 파일이 아니다") from exc
+        try:
+            self._load()
+        except BaseException:
+            self._zip.close()
+            raise
+
+    def _load(self) -> None:
+        try:
             book = ET.fromstring(self._zip.read("xl/workbook.xml"))
             rels = ET.fromstring(self._zip.read("xl/_rels/workbook.xml.rels"))
-        except (zipfile.BadZipFile, KeyError, ET.ParseError) as exc:
+        except BROKEN as exc:
             raise XlsxError("workbook", "xlsx 파일이 아니다") from exc
         targets = {r.get("Id"): r.get("Target") for r in rels.iter(f"{PKG}Relationship")}
         self._sheets = {}
@@ -90,10 +109,19 @@ class Workbook:
             target = targets.get(sheet.get(f"{REL}id")) or ""
             self._sheets[sheet.get("name")] = target.lstrip("/") if target.startswith("/") else f"xl/{target}"
         try:
-            strings = ET.fromstring(self._zip.read("xl/sharedStrings.xml"))
-            self._strings = ["".join(t.text or "" for t in si.iter(f"{MAIN}t")) for si in strings.iter(f"{MAIN}si")]
+            data = self._zip.read("xl/sharedStrings.xml")
         except KeyError:
+            data = None
+        except BROKEN as exc:
+            raise XlsxError("workbook", "xlsx 파일이 아니다") from exc
+        if data is None:
             self._strings = []
+            return
+        try:
+            strings = ET.fromstring(data)
+        except BROKEN as exc:
+            raise XlsxError("workbook", "xlsx 파일이 아니다") from exc
+        self._strings = ["".join(t.text or "" for t in si.iter(f"{MAIN}t")) for si in strings.iter(f"{MAIN}si")]
 
     def close(self) -> None:
         self._zip.close()
@@ -105,12 +133,20 @@ class Workbook:
         node = cell.find(f"{MAIN}v")
         if node is None or node.text is None:
             return None
-        return self._strings[int(node.text)] if kind == "s" else node.text
+        if kind != "s":
+            return node.text
+        try:
+            return self._strings[int(node.text)]
+        except (IndexError, ValueError) as exc:
+            raise XlsxError("workbook", "xlsx 파일이 아니다") from exc
 
     def rows(self, name: str) -> list[dict[str, str]]:
         if name not in self._sheets:
             raise XlsxError("sheet", f"'{name}' 시트가 없다. 있는 시트: {', '.join(self._sheets)}")
-        root = ET.fromstring(self._zip.read(self._sheets[name]))
+        try:
+            root = ET.fromstring(self._zip.read(self._sheets[name]))
+        except BROKEN as exc:
+            raise XlsxError("workbook", "xlsx 파일이 아니다") from exc
         out = []
         for row in root.iter(f"{MAIN}row"):
             cells = {}

@@ -18,9 +18,8 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
+from ..assets.assets_serve import ALLOWED_HOSTS
 from . import meetings_canvas, meetings_edit, vault_tree
-
-ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 HERE = Path(__file__).resolve().parent
 SCRIPT = "text/javascript; charset=utf-8"

@@ -1,0 +1,122 @@
+import tempfile
+import unittest
+from pathlib import Path
+
+from tabs.plans import plans_index, plans_index_html
+from tabs.plans.plans_serve import resolve_plan
+
+DONE_WITH_OPEN = """---
+status: 완료
+progress: 100
+updated: 2026-11-02
+---
+
+# 계획
+
+- [x] 끝난 일
+- [ ] 체크 안 한 일
+  * [X] 들여쓴 하위 항목
+
+```markdown
+- [ ] 코드 블록 안 예시는 세지 않는다
+```
+"""
+
+
+def write(folder: Path, name: str, text: str) -> Path:
+    path = folder / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+class ReadPlanTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.warnings = []
+
+    def read(self, name, text, features=None):
+        return plans_index.read(write(self.dir, name, text), features or {}, self.warnings)
+
+    def test_checkboxes_skip_fenced_code_and_flag_done_with_open_items(self):
+        plan = self.read("2026-11-01 계획.md", DONE_WITH_OPEN)
+        self.assertEqual((plan["checked"], plan["total"]), (2, 3))
+        self.assertEqual(plan["state"], "done")
+        self.assertTrue(plan["mismatch"])
+        self.assertEqual(plan["updated"], "2026-11-02")
+
+    def test_status_spellings_map_to_one_state(self):
+        for status, state in (("진행중", "doing"), ("진행 중", "doing"), ("done", "done"), ("할 일", "todo")):
+            plan = self.read("2026-11-01 a.md", f"---\nstatus: {status}\n---\n- [ ] x\n")
+            self.assertEqual(plan["state"], state, status)
+            self.assertEqual(plan["mismatch"], state == "done", status)
+
+    def test_missing_frontmatter_is_reference_and_dates_fall_back_to_filename(self):
+        plan = self.read("2026-10-19 인계.md", "# 인계\n\n- [ ] 남은 일\n")
+        self.assertEqual((plan["state"], plan["progress"]), ("ref", None))
+        self.assertEqual((plan["date"], plan["updated"], plan["title"]), ("2026-10-19", "2026-10-19", "인계"))
+        self.assertEqual(self.warnings, [])
+
+    def test_unclosed_frontmatter_is_not_frontmatter(self):
+        plan = self.read("2026-10-19 b.md", "---\nstatus: 완료\n# 제목\n")
+        self.assertEqual(plan["state"], "ref")
+
+    def test_unknown_status_and_bad_progress_warn(self):
+        plan = self.read("2026-10-19 c.md", "---\nstatus: 보류\nprogress: 반쯤\n---\n")
+        self.assertEqual((plan["state"], plan["progress"]), ("ref", None))
+        self.assertEqual(len(self.warnings), 2)
+
+    def test_progress_is_clamped(self):
+        plan = self.read("2026-10-19 d.md", "---\nstatus: 진행중\nprogress: 140\n---\n")
+        self.assertEqual(plan["progress"], 100)
+
+
+class SyncTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        write(self.dir, "00_10-plans_기능구분.md",
+              "| 파일 | 기능 구분 |\n| --- | --- |\n| 2026-11-01 매핑됨.md | 외부 결재, 배포 |\n| 2026-01-01 지워진 계획.md | 배포 |\n")
+        write(self.dir, "2026-11-01 매핑됨.md", "---\nstatus: 진행중\nprogress: 40\n---\n- [x] a\n- [ ] b\n")
+        write(self.dir, "2026-11-02 매핑없음.md", "---\nstatus: 할 일\n---\n")
+        write(self.dir, "2026-11-01 매핑됨 부속/report.md", "---\nstatus: 완료\n---\n")
+
+    def test_sync_lists_top_level_plans_and_warns_on_mapping_gaps(self):
+        result = plans_index.sync(self.dir)
+        self.assertEqual(result["counts"], {"todo": 1, "doing": 1, "done": 0, "ref": 0, "mismatch": 0})
+        self.assertEqual(len(result["warnings"]), 2)
+        self.assertTrue(any("매핑없음" in w for w in result["warnings"]))
+        self.assertTrue(any("지워진 계획" in w for w in result["warnings"]))
+        md = (self.dir / "00_10-plans_목록.md").read_text(encoding="utf-8")
+        self.assertIn("| 외부 결재, 배포 | [[2026-11-01 매핑됨.md\\|매핑됨]] | 40% | 1/2 |", md)
+        self.assertIn("| 미분류 | [[2026-11-02 매핑없음.md\\|매핑없음]] |", md)
+        self.assertNotIn("report", md)
+        html = (self.dir / "00_10-plans_목록.html").read_text(encoding="utf-8")
+        self.assertIn('href="view.html#2026-11-01%20%EB%A7%A4%ED%95%91%EB%90%A8.md"', html)
+        self.assertIn('data-features="외부 결재|배포"', html)
+
+    def test_check_mode_reports_stale_without_writing(self):
+        self.assertEqual(plans_index.sync(self.dir, check=True)["stale"], ["00_10-plans_목록.md", "00_10-plans_목록.html"])
+        self.assertFalse((self.dir / "00_10-plans_목록.md").exists())
+        plans_index.sync(self.dir)
+        self.assertEqual(plans_index.sync(self.dir, check=True)["stale"], [])
+
+
+class ResolvePlanTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
+        write(self.dir, "2026-11-01 계획.md", "x")
+        write(self.dir, "부속/report.md", "x")
+        write(self.dir, ".hidden.md", "x")
+        write(self.dir, "notes.txt", "x")
+        outside = write(self.dir.parent, f"{self.dir.name}-outside.md", "x")
+        self.addCleanup(outside.unlink)
+
+    def test_only_top_level_markdown_is_served(self):
+        self.assertIsNotNone(resolve_plan(self.dir, "2026-11-01 계획.md"))
+        for name in ("부속/report.md", ".hidden.md", "notes.txt", f"../{self.dir.name}-outside.md",
+                     "..", "", "부속\\report.md", "없는파일.md"):
+            self.assertIsNone(resolve_plan(self.dir, name), name)
+
+
+if __name__ == "__main__":
+    unittest.main()

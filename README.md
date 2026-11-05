@@ -45,7 +45,7 @@ cd ~/workspace/dobbys-dashboard && python3 serve.py
 | 캐시 | `~/Library/Caches/dobbys-dashboard/` |
 | 비밀값 | 키체인 `dobbys-dashboard.jira`·`dobbys-dashboard.trombone` (계정 `default`) |
 
-설정을 초기화하려면 `config.json`을 지우고 새로고침한다.
+설정을 초기화하려면 `config.json`을 지우고 서버를 재시작한 뒤(상주 실행이면 `launchctl kickstart -k gui/$(id -u)/com.dobbys-dashboard`, 직접 띄웠으면 Ctrl+C 후 `python3 serve.py`) 새로고침한다. 서버는 설정을 시작할 때 한 번만 읽는다.
 
 ## 탭별 메모
 

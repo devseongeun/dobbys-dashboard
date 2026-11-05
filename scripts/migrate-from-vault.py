@@ -35,38 +35,33 @@ def main() -> int:
     ap.add_argument("--jira-ini", type=Path, required=True)
     args = ap.parse_args()
     work = args.vault / "projects" / "work"
+    old_wbs = work / "TRB_400/90-assets/wbs-jira/wbs.json"
+    old_report_path = work / "TRB_400/20-implementation-notes/scripts/spec_comment_report.py"
+    jira_cache = HOME / "Library/Caches/trb-wbs-jira/jira.json"
+    for path, message in ((old_wbs, "옛 wbs.json 이 없다"), (old_report_path, "옛 spec_comment_report.py 가 없다"),
+                          (args.jira_ini, "Jira 설정 파일이 없다")):
+        if not path.is_file():
+            print(f"{message}: {path}", file=sys.stderr)
+            return 1
 
     drafts = HOME / "Library/Application Support/trb-wbs-jira/plan-drafts.json"
     if drafts.exists():
-        write_json(STATE_ROOT / "wbs" / "plan-drafts.json", read_json(drafts))
-        print(f"[OK] 일정 조정 초안 {len(read_json(drafts))}건")
+        draft_data = read_json(drafts)
+        write_json(STATE_ROOT / "wbs" / "plan-drafts.json", draft_data)
+        print(f"[OK] 일정 조정 초안 {len(draft_data)}건")
 
-    old = read_json(work / "TRB_400/90-assets/wbs-jira/wbs.json")
-    issues = {i["key"]: i for i in read_json(HOME / "Library/Caches/trb-wbs-jira/jira.json").get("issues", [])}
-    tasks = {t["id"]: t for t in read_wbs(args.workbook, args.sheet, args.owner)["tasks"]}
-    auto = match_keys(list(tasks.values()), list(issues.values()), {})
-    links = LinkStore(STATE_ROOT / "wbs" / "links.json")
-    print("[..] WBS-Jira 연결: 자동 매칭과 다른 것만 수동 연결로 옮긴다. 아래 목록을 검토한다.")
-    for task in old.get("tasks", []):
-        key = task.get("jira")
-        if not key:
-            continue
-        if task["id"] not in tasks:
-            print(f"     건너뜀 {task['id']} → {key}: 현재 엑셀에 내 행이 없다")
-            continue
-        if auto.get(task["id"]) == key:
-            continue
-        links.set(task["id"], key)
-        print(f"     수동 연결 {task['id']} → {key} | WBS: {tasks[task['id']]['name']} | Jira: {issues.get(key, {}).get('summary', '(캐시에 없음)')}")
-    print(f"[OK] 자동 매칭 {sum(1 for t in old.get('tasks', []) if auto.get(t['id']) == t.get('jira'))}건, 수동 연결 {len(links.load())}건")
+    if jira_cache.is_file():
+        _migrate_links(args, read_json(old_wbs), read_json(jira_cache))
+    else:
+        print(f"[WARN] 옛 Jira 캐시가 없어 자동 매칭 비교를 못 한다: {jira_cache} — WBS-Jira 연결은 옮기지 않는다 (탭에서 로그인하면 자동 매칭된다)")
 
     reviewed = work / "weekly-report/weekly-report-viewer/reviewed.json"
     if reviewed.exists():
-        write_json(STATE_ROOT / "weekly" / "reviewed.json", read_json(reviewed))
-        print(f"[OK] 주간 보고 확인 상태 {len(read_json(reviewed))}건")
+        reviewed_data = read_json(reviewed)
+        write_json(STATE_ROOT / "weekly" / "reviewed.json", reviewed_data)
+        print(f"[OK] 주간 보고 확인 상태 {len(reviewed_data)}건")
 
-    spec = importlib.util.spec_from_file_location(
-        "old_spec_comment_report", work / "TRB_400/20-implementation-notes/scripts/spec_comment_report.py")
+    spec = importlib.util.spec_from_file_location("old_spec_comment_report", old_report_path)
     old_report = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(old_report)
     overrides = OverrideStore(STATE_ROOT / "comments" / "overrides.json")
@@ -85,6 +80,26 @@ def main() -> int:
                             "token": section["api_token"].strip()})
     print("[OK] Jira 자격증명 → 키체인 dobbys-dashboard.jira")
     return 0
+
+
+def _migrate_links(args: argparse.Namespace, old: dict, cache: dict) -> None:
+    issues = {i["key"]: i for i in cache.get("issues", [])}
+    tasks = {t["id"]: t for t in read_wbs(args.workbook, args.sheet, args.owner)["tasks"]}
+    auto = match_keys(list(tasks.values()), list(issues.values()), {})
+    links = LinkStore(STATE_ROOT / "wbs" / "links.json")
+    print("[..] WBS-Jira 연결: 자동 매칭과 다른 것만 수동 연결로 옮긴다. 아래 목록을 검토한다.")
+    for task in old.get("tasks", []):
+        key = task.get("jira")
+        if not key:
+            continue
+        if task["id"] not in tasks:
+            print(f"     건너뜀 {task['id']} → {key}: 현재 엑셀에 내 행이 없다")
+            continue
+        if auto.get(task["id"]) == key:
+            continue
+        links.set(task["id"], key)
+        print(f"     수동 연결 {task['id']} → {key} | WBS: {tasks[task['id']]['name']} | Jira: {issues.get(key, {}).get('summary', '(캐시에 없음)')}")
+    print(f"[OK] 자동 매칭 {sum(1 for t in old.get('tasks', []) if auto.get(t['id']) == t.get('jira'))}건, 수동 연결 {len(links.load())}건")
 
 
 if __name__ == "__main__":

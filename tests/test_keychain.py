@@ -26,6 +26,14 @@ class KeychainTest(unittest.TestCase):
         self.assertEqual(args[-1], "-w")
         self.assertEqual(kwargs["input"], '{"token": "s3cret"}\n{"token": "s3cret"}\n')
 
+    def test_every_call_detaches_from_controlling_terminal(self):
+        run = FakeRun((0, ""), (0, '{"a": "b"}'), (0, ""))
+        keychain = Keychain(run=run)
+        keychain.set("jira", {"token": "x"})
+        keychain.get("jira")
+        keychain.delete("jira")
+        self.assertEqual([kwargs["start_new_session"] for _, kwargs in run.calls], [True, True, True])
+
     def test_set_failure_raises(self):
         with self.assertRaises(KeychainError):
             Keychain(run=FakeRun((1, ""))).set("jira", {"token": "x"})

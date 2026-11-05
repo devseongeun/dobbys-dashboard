@@ -28,8 +28,11 @@ class Keychain:
     def _call(self, args: list[str], stdin: str | None = None):
         """security 실행 자체가 실패하면(잠김으로 인한 시간 초과·명령 없음) KeychainError 로 바꾼다. 비밀값은 싣지 않는다."""
         service = args[args.index("-s") + 1]
+        # 제어 터미널이 있으면 security 가 -w 값을 stdin 대신 /dev/tty 로 물어 보고 멈춘다.
+        # 새 세션으로 띄워 터미널을 떼어 내야 stdin 에서 읽는다.
         try:
-            return self._run(["security", *args], input=stdin, capture_output=True, text=True, timeout=TIMEOUT)
+            return self._run(["security", *args], input=stdin, capture_output=True, text=True, timeout=TIMEOUT,
+                             start_new_session=True)
         except subprocess.TimeoutExpired:
             raise KeychainError(f"키체인 응답 시간 초과 ({service})") from None
         except OSError as exc:

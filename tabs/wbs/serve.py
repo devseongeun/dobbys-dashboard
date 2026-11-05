@@ -176,7 +176,11 @@ def make_handler(service, source, links, session, drafts_path: Path, domain: str
             if body is None:
                 return
             if path == "/api/logout":
-                session.logout()
+                try:
+                    session.logout()
+                except KeychainError as exc:
+                    self._send_json(500, {"error": str(exc)})
+                    return
                 service.invalidate()
                 self._send_json(200, {})
                 return

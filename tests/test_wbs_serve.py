@@ -4,6 +4,8 @@ import unittest
 import zipfile
 from pathlib import Path
 
+from dashboard.keychain import KeychainError
+from tabs.wbs.board import BoardService
 from tabs.wbs.jira import JiraError
 from tabs.wbs.serve import make_handler
 from tabs.wbs.store import LinkStore
@@ -128,3 +130,33 @@ class BrokenWorkbookTest(WbsServeTest):
 
     def test_links_validate_and_invalidate_board(self):
         self.skipTest("깨진 엑셀에서는 해당 없음")
+
+
+class BrokenKeychainSession:
+    def client(self):
+        raise KeychainError("키체인 값이 JSON 이 아니다")
+
+    def logout(self):
+        raise KeychainError("키체인 삭제 실패")
+
+
+class BrokenKeychainServeTest(unittest.TestCase):
+    """키체인 항목이 깨져도 탭은 200 으로 로그인 화면을 보여야 한다."""
+
+    def setUp(self):
+        self.dir = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        session = BrokenKeychainSession()
+        service = BoardService(session, "PROJ", lambda: [], cache_path=self.dir / "jira.json")
+        handler = make_handler(service, FakeSource(), LinkStore(self.dir / "links.json"), session,
+                               self.dir / "plan-drafts.json", "team.atlassian.net")
+        self.port = serve_handler(self, handler)
+
+    def test_board_is_disconnected_with_auth_error(self):
+        status, _, body = request(self, self.port, "GET", "/api/board")
+        payload = json.loads(body)
+        self.assertEqual((status, payload["connected"], payload["authError"]), (200, False, True))
+        self.assertIn("키체인", payload["error"])
+
+    def test_logout_keychain_error_is_json_500(self):
+        status, body = send_json(self, self.port, "POST", "/api/logout", {})
+        self.assertEqual((status, body), (500, {"error": "키체인 삭제 실패"}))

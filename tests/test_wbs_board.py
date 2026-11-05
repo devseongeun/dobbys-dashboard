@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from dashboard.keychain import KeychainError
 from tabs.wbs.board import BoardService, normalize_issue, normalize_worklog
 from tabs.wbs.jira import JiraError, build_jql
 
@@ -52,6 +53,11 @@ class FakeSession:
 
     def client(self):
         return self._client
+
+
+class BrokenKeychainSession:
+    def client(self):
+        raise KeychainError("키체인 값이 JSON 이 아니다")
 
 
 class FailingClient:
@@ -233,6 +239,13 @@ class BoardServiceTest(unittest.TestCase):
                                cache_path=self.cache)
         payload = failing.payload()
         self.assertEqual((payload["connected"], payload["authError"], payload["issues"]), (False, True, []))
+
+    def test_keychain_error_shows_login_instead_of_crashing(self):
+        service = BoardService(BrokenKeychainSession(), "PROJ", lambda: [], cache_path=self.cache)
+        payload = service.payload()
+        self.assertEqual((payload["connected"], payload["authError"], payload["issues"]), (False, True, []))
+        self.assertIn("키체인 값이 JSON 이 아니다", payload["error"])
+        self.assertEqual(service.lookup(["PROJ-1"]), {"issues": [], "error": "키체인 값이 JSON 이 아니다"})
 
     def test_other_jira_error_falls_back_to_cache_as_stale(self):
         BoardService(FakeSession(self.client), "PROJ", lambda: [], cache_path=self.cache).payload()

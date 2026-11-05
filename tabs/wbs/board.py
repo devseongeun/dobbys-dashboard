@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from dashboard.keychain import KeychainError
+
 from .jira import FIELDS, LOOKUP_FIELDS, JiraError, adf_to_text, build_jql, build_key_jql
 
 TTL_SECONDS = 120
@@ -76,7 +78,11 @@ class BoardService:
             pass
 
     def payload(self, refresh: bool = False) -> dict:
-        client = self._session.client()
+        try:
+            client = self._session.client()
+        except KeychainError as exc:
+            # 깨진 키체인 항목은 다시 로그인하면 덮어쓴다. 로그인 화면을 보여 준다.
+            return {**EMPTY, "connected": False, "authError": True, "error": str(exc)}
         if client is None:
             return {**EMPTY, "connected": False, "authError": False}
         now = self._clock()
@@ -117,7 +123,10 @@ class BoardService:
 
     def lookup(self, keys) -> dict:
         """지정 키의 이슈를 읽기 전용으로 조회한다(담당자 무관, 캐시 없음)."""
-        client = self._session.client()
+        try:
+            client = self._session.client()
+        except KeychainError as exc:
+            return {"issues": [], "error": str(exc)}
         if client is None:
             return {"issues": [], "error": "Jira 로그인이 필요하다"}
         try:

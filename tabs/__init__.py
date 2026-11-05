@@ -2,6 +2,7 @@
 from tabs.assets import TAB as ASSETS
 from tabs.meetings import TAB as MEETINGS
 from tabs.plans import TAB as PLANS
+from tabs.wbs import TAB as WBS
 from tabs.weekly import TAB as WEEKLY
 
-ALL_TABS = (ASSETS, PLANS, MEETINGS, WEEKLY)
+ALL_TABS = (WBS, ASSETS, PLANS, MEETINGS, WEEKLY)

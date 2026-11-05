@@ -1,8 +1,9 @@
 """사이드바 순서대로 탭을 모은다. 탭 패키지마다 TAB 하나를 내보낸다."""
 from tabs.assets import TAB as ASSETS
+from tabs.comments import TAB as COMMENTS
 from tabs.meetings import TAB as MEETINGS
 from tabs.plans import TAB as PLANS
 from tabs.wbs import TAB as WBS
 from tabs.weekly import TAB as WEEKLY
 
-ALL_TABS = (WBS, ASSETS, PLANS, MEETINGS, WEEKLY)
+ALL_TABS = (WBS, ASSETS, PLANS, COMMENTS, MEETINGS, WEEKLY)

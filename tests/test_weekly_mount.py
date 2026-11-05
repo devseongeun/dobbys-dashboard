@@ -4,7 +4,11 @@ import unittest
 from pathlib import Path
 
 from tabs.weekly import TAB
-from tests.support import dashboard_with, raw_exchange, request
+from dashboard.app import Dashboard
+from dashboard.config import ConfigStore
+from dashboard.dispatch import make_dispatcher
+from dashboard.paths import REPO_ROOT
+from tests.support import dashboard_with, raw_exchange, request, serve_handler
 from tests.test_report_parser import REPORT
 
 
@@ -49,3 +53,21 @@ class WeeklyEmptyFolderTest(unittest.TestCase):
         status, _, body = request(self, port, "GET", "/weekly/")
         self.assertEqual(status, 404)
         self.assertIn("최신화", body.decode("utf-8"))
+
+
+class WeeklyFolderChangeTest(unittest.TestCase):
+    def test_saving_new_folders_rebuilds_viewer_without_regenerate(self):
+        root = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
+        a, b = root / "a", root / "b"
+        a.mkdir()
+        b.mkdir()
+        (a / "2026-11-02~ 2026-11-08-weekly-report.md").write_text(
+            REPORT.format(date="2026-11-02", start="2026-10-26", end="2026-11-01", title="A 보고서"), encoding="utf-8")
+        (b / "2026-10-26~ 2026-11-01-weekly-report.md").write_text(
+            REPORT.format(date="2026-10-26", start="2026-10-19", end="2026-10-25", title="B전용보고서"), encoding="utf-8")
+        dashboard = Dashboard((TAB,), ConfigStore(root / "config.json"), root / "state")
+        self.assertEqual(dashboard.apply({"tabs": {"weekly": {"folders": [str(a)]}}})[0], 200)
+        port = serve_handler(self, make_dispatcher(dashboard, REPO_ROOT / "shell"))
+        self.assertNotIn("B전용보고서", request(self, port, "GET", "/weekly/")[2].decode("utf-8"))
+        self.assertEqual(dashboard.apply({"tabs": {"weekly": {"folders": [str(a), str(b)]}}})[0], 200)
+        self.assertIn("B전용보고서", request(self, port, "GET", "/weekly/")[2].decode("utf-8"))

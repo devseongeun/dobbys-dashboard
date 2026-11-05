@@ -6,7 +6,7 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Sequence
 
 FIELDS = (
@@ -94,7 +94,7 @@ TIMEOUT_SECONDS = 30
 class JiraConfig:
     base_url: str
     email: str
-    token: str
+    token: str = field(repr=False)
 
 
 class JiraError(Exception):

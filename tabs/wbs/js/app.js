@@ -17,7 +17,6 @@ const todayISO = () => {
     "-" + String(d.getDate()).padStart(2, "0");
 };
 // 일정 조정 초안은 서버가 개인 상태 폴더(plan-drafts.json)에 저장한다. Jira 로는 절대 보내지 않는다.
-const LEGACY_STORE = "trb-wbs-jira:plan-drafts";
 let saving = Promise.resolve(true);
 
 // 저장 순서를 지키도록 PUT 을 줄 세운다. 불러오기 전에는 저장하지 않는다(빈 초안으로 파일을 덮지 않게).
@@ -42,10 +41,8 @@ async function loadDrafts() {
     const res = await fetch("api/drafts");
     if (!res.ok) throw new Error(res.status === 404 ? "서버가 예전 버전이다. serve.py 를 재시작해야 한다" : "HTTP " + res.status);
     const saved = parseDrafts(await res.text());
-    const legacy = parseDrafts(localStorage.getItem(LEGACY_STORE));
-    app.drafts = { ...legacy, ...saved };
+    app.drafts = saved;
     app.draftsReady = true;
-    if (Object.keys(legacy).length && await saveDrafts()) localStorage.removeItem(LEGACY_STORE);
   } catch (err) {
     app.notice = "초안 불러오기 실패(저장 중지): " + err.message;
   }
@@ -533,6 +530,9 @@ async function jiraLogin() {
   } catch (err) {
     app.jiraNotice = err.message;
     renderJira();
+    // 다시 그리면 입력칸이 비므로, 입력하던 값을 되살린다.
+    document.getElementById("jemail").value = email;
+    document.getElementById("jtoken").value = token;
   }
 }
 

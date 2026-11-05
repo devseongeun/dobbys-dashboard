@@ -1,6 +1,6 @@
 import unittest
 
-from tabs.wbs.jira import LOOKUP_LIMIT, adf_to_text, build_jql, build_key_jql
+from tabs.wbs.jira import LOOKUP_LIMIT, JiraConfig, adf_to_text, build_jql, build_key_jql
 
 
 class BuildJqlTest(unittest.TestCase):
@@ -94,3 +94,8 @@ class AdfToTextTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class JiraConfigTest(unittest.TestCase):
+    def test_repr_hides_token(self):
+        self.assertNotIn("secret-token", repr(JiraConfig("https://x", "a@b", "secret-token")))

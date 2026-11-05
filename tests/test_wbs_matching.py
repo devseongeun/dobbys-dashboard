@@ -49,3 +49,10 @@ class LinkStoreTest(unittest.TestCase):
         self.assertEqual(store.set("A", "PROJ-1"), {"A": "PROJ-1"})
         self.assertEqual(LinkStore(path).load(), {"A": "PROJ-1"})
         self.assertEqual(store.set("A", None), {})
+
+    def test_set_refuses_to_overwrite_corrupt_file(self):
+        path = Path(self.enterContext(tempfile.TemporaryDirectory())) / "links.json"
+        path.write_text("{broken", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            LinkStore(path).set("A", "PROJ-1")
+        self.assertEqual(path.read_text(encoding="utf-8"), "{broken")

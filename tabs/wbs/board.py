@@ -8,7 +8,7 @@ from typing import Callable
 
 from dashboard.keychain import KeychainError
 
-from .jira import FIELDS, LOOKUP_FIELDS, JiraError, adf_to_text, build_jql, build_key_jql
+from .jira import FIELDS, KEY_RE, LOOKUP_FIELDS, JiraError, adf_to_text, build_jql, build_key_jql
 
 TTL_SECONDS = 120
 
@@ -104,7 +104,7 @@ class BoardService:
         me = client.myself()
         if not me.get("accountId"):
             raise JiraError("Jira 신원 확인 응답에 accountId 가 없다")
-        jql = build_jql(self._project, me["accountId"], self._linked_keys())
+        jql = build_jql(self._project, me["accountId"], [k for k in self._linked_keys() if KEY_RE.match(k)])
         issues, worklogs = [], []
         for raw in client.search_all(jql, FIELDS):
             issues.append(normalize_issue(raw))

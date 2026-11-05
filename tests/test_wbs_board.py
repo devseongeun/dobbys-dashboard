@@ -139,6 +139,13 @@ class BoardServiceTest(unittest.TestCase):
         self.assertEqual(len(payload["issues"]), 1)
         self.assertEqual(len(payload["worklogs"]), 1)
 
+    def test_hand_edited_invalid_link_keys_are_ignored(self):
+        service = BoardService(FakeSession(FakeClient([RAW_ISSUE])), "PROJ", lambda: ["PROJ-1156", "bad key\"", "x-1"],
+                               cache_path=self.cache)
+        payload = service.payload()
+        self.assertEqual(service._session.client().jqls, [build_jql("PROJ", ACCOUNT, ["PROJ-1156"])])
+        self.assertIsNone(payload["error"])
+
     def test_truncated_worklog_triggers_extra_fetch(self):
         raw = json.loads(json.dumps(RAW_ISSUE))
         raw["fields"]["worklog"]["total"] = 25

@@ -95,6 +95,13 @@ class WbsServeTest(unittest.TestCase):
         self.assertEqual(self.get("/api/board")[1]["links"], {"A-1": "PROJ-100"})
         self.assertEqual(send_json(self, self.port, "PUT", "/api/links", {"task": "A-1", "key": None})[1]["links"], {})
 
+    def test_corrupt_links_file_is_500_and_left_untouched(self):
+        self.links.path.write_text("{broken", encoding="utf-8")
+        status, body = send_json(self, self.port, "PUT", "/api/links", {"task": "A-1", "key": "PROJ-100"})
+        self.assertEqual(status, 500)
+        self.assertIn("links.json", body["error"])
+        self.assertEqual(self.links.path.read_text(encoding="utf-8"), "{broken")
+
     def test_login_maps_auth_failure_to_401_and_success_invalidates(self):
         status, body = send_json(self, self.port, "POST", "/api/login", {"email": "a@b.c", "token": "bad"})
         self.assertEqual(status, 401)
@@ -129,6 +136,9 @@ class BrokenWorkbookTest(WbsServeTest):
         self.skipTest("깨진 엑셀에서는 해당 없음")
 
     def test_links_validate_and_invalidate_board(self):
+        self.skipTest("깨진 엑셀에서는 해당 없음")
+
+    def test_corrupt_links_file_is_500_and_left_untouched(self):
         self.skipTest("깨진 엑셀에서는 해당 없음")
 
 

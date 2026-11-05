@@ -159,7 +159,11 @@ def make_handler(service, source, links, session, drafts_path: Path, domain: str
                 if key is not None and (not isinstance(key, str) or not KEY_RE.match(key)):
                     self._send_json(400, {"error": "이슈 키 형식이 아니다 (예: PROJ-1234)"})
                     return
-                saved = links.set(task, key)
+                try:
+                    saved = links.set(task, key)
+                except ValueError as exc:
+                    self._send_json(500, {"error": str(exc)})
+                    return
                 service.invalidate()
                 self._send_json(200, {"links": saved})
                 return

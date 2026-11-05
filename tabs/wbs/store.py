@@ -29,6 +29,13 @@ def write_json(path: Path, data: dict) -> None:
         raise
 
 
+def _parse(path: Path):
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
 class LinkStore:
     """요구사항ID → Jira 이슈키 수동 연결."""
 
@@ -41,6 +48,8 @@ class LinkStore:
 
     def set(self, task_id: str, key: str | None) -> dict[str, str]:
         with self._lock:
+            if self.path.exists() and not isinstance(_parse(self.path), dict):
+                raise ValueError(f"links.json 을 읽지 못해 수동 연결을 덮어쓰지 않는다: {self.path}")
             data = self.load()
             if key:
                 data[task_id] = key

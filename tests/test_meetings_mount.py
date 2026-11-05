@@ -1,12 +1,11 @@
 import json
-import socket
 import tempfile
 import unittest
 import urllib.parse
 from pathlib import Path
 
 from tabs.meetings import TAB, find_vault
-from tests.support import dashboard_with, request
+from tests.support import dashboard_with, raw_exchange, request
 
 MEETING_ID = "2026-11-05 라이프사이클팀"
 MEETING = urllib.parse.quote(MEETING_ID)
@@ -15,17 +14,6 @@ EDITOR = {"Content-Type": "application/json", "X-Meetings-Editor": "1"}
 
 def vault_file(path=None):
     return "/meetings/file" + ("?" + urllib.parse.urlencode({"p": path}, quote_via=urllib.parse.quote) if path is not None else "")
-
-
-def raw_exchange(port: int, request: bytes, timeout: float = 3.0) -> bytes:
-    with socket.create_connection(("127.0.0.1", port), timeout=timeout) as sock:
-        sock.sendall(request)
-        chunks = []
-        while True:
-            chunk = sock.recv(65536)
-            if not chunk:
-                return b"".join(chunks)
-            chunks.append(chunk)
 
 
 class MeetingsMountTest(unittest.TestCase):

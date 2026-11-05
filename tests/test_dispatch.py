@@ -2,7 +2,6 @@ import contextlib
 import http.client
 import io
 import json
-import socket
 import tempfile
 import threading
 import unittest
@@ -10,6 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from dashboard.dispatch import Mount, make_dispatcher
+from tests.support import raw_exchange
 
 
 class EchoHandler(BaseHTTPRequestHandler):
@@ -33,18 +33,6 @@ class BoomHandler(BaseHTTPRequestHandler):
 
     def log_message(self, *args):
         pass
-
-
-def raw_exchange(port: int, request: bytes, timeout: float = 3.0) -> bytes:
-    """요청을 보내고 서버가 연결을 닫을 때까지 읽는다. 닫지 않으면 TimeoutError."""
-    with socket.create_connection(("127.0.0.1", port), timeout=timeout) as sock:
-        sock.sendall(request)
-        chunks = []
-        while True:
-            chunk = sock.recv(65536)
-            if not chunk:
-                return b"".join(chunks)
-            chunks.append(chunk)
 
 
 class StubDashboard:

@@ -5,6 +5,7 @@ import contextlib
 import http.client
 import io
 import json
+import socket
 import tempfile
 import threading
 from http.server import ThreadingHTTPServer
@@ -63,3 +64,15 @@ def dashboard_with(test, tab, settings: dict) -> tuple[int, Path]:
     mount = dashboard.mount(tab.id)
     test.assertIsNone(mount.error, mount.error)
     return serve_handler(test, make_dispatcher(dashboard, REPO_ROOT / "shell")), root / "state" / tab.id
+
+
+def raw_exchange(port: int, request: bytes, timeout: float = 3.0) -> bytes:
+    """요청을 보내고 서버가 연결을 닫을 때까지 읽는다. 닫지 않으면 TimeoutError."""
+    with socket.create_connection(("127.0.0.1", port), timeout=timeout) as sock:
+        sock.sendall(request)
+        chunks = []
+        while True:
+            chunk = sock.recv(65536)
+            if not chunk:
+                return b"".join(chunks)
+            chunks.append(chunk)

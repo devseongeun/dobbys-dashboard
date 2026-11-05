@@ -2,5 +2,6 @@
 from tabs.assets import TAB as ASSETS
 from tabs.meetings import TAB as MEETINGS
 from tabs.plans import TAB as PLANS
+from tabs.weekly import TAB as WEEKLY
 
-ALL_TABS = (ASSETS, PLANS, MEETINGS)
+ALL_TABS = (ASSETS, PLANS, MEETINGS, WEEKLY)

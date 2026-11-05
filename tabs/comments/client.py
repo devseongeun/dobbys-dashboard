@@ -32,7 +32,7 @@ class TromboneClient:
         req = urllib.request.Request(self.base + API_PREFIX + path, data=data, method=method, headers=headers)
         try:
             with self._open(req, timeout=TIMEOUT) as res:
-                raw = res.read().decode("utf-8")
+                raw = res.read()
         except urllib.error.HTTPError as exc:
             message = f"HTTP {exc.code}"
             try:
@@ -46,7 +46,12 @@ class TromboneClient:
             raise TromboneError(f"기획서 연결 실패: {exc.reason} · 사내망(VPN) 연결을 확인한다") from None
         except TimeoutError:
             raise TromboneError(f"기획서 응답 시간 초과 ({TIMEOUT}s) · 사내망(VPN) 연결을 확인한다") from None
-        return json.loads(raw) if raw else None
+        if not raw:
+            return None
+        try:
+            return json.loads(raw.decode("utf-8"))
+        except ValueError:
+            raise TromboneError("기획서 응답이 JSON 이 아니다 · 사내망(VPN) 연결을 확인한다") from None
 
     def inbox(self) -> list[dict]:
         return self.call("GET", "/comments") or []

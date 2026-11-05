@@ -90,3 +90,9 @@ class ServiceTest(unittest.TestCase):
         self.keychain.items["trombone"]["name"] = "코멘트 없는 사람"
         with self.assertRaises(NothingToExport):
             service.export()
+
+    def test_react_duplicate_ids_post_once(self):
+        service = self.make()
+        result = service.react(["CM5", "CM5"])
+        self.assertEqual(result["applied"], 1)
+        self.assertEqual(self.client.reacted, [("CM5", "EMO005", "T")])

@@ -80,7 +80,7 @@ class CommentService:
         creds, rows, _, _ = self._collect()
         by_id = {r["commentId"]: r for r in rows}
         applied, skipped, failed = 0, 0, []
-        for comment_id in ids:
+        for comment_id in dict.fromkeys(ids):
             row = by_id.get(comment_id)
             if row is None:
                 failed.append(f"{comment_id}(코멘트 없음)")

@@ -53,10 +53,10 @@ test("렌더에 날짜·이슈키·시간이 포함된다", () => {
 
 test("내 기록만 남긴다 — 타인 워크로그는 집계에서 빠진다", () => {
   const mixed = [
-    { id: "1", issueKey: "PROJ-1102", authorId: "6396a581f7f0ee492fce5049", started: "2026-09-21", startedAt: "2026-09-21T09:00:00.000+0900", seconds: 3600, comment: "" },
+    { id: "1", issueKey: "PROJ-1102", authorId: "me-account-id", started: "2026-09-21", startedAt: "2026-09-21T09:00:00.000+0900", seconds: 3600, comment: "" },
     { id: "2", issueKey: "PROJ-1102", authorId: "other-account-id", started: "2026-09-21", startedAt: "2026-09-21T10:00:00.000+0900", seconds: 7200, comment: "" },
   ];
-  const mine = mineOnly(mixed, "6396a581f7f0ee492fce5049");
+  const mine = mineOnly(mixed, "me-account-id");
   expect(mine.map((l) => l.id)).toEqual(["1"]);
   expect(aggregate(mine, "2026-09-01", "2026-09-30").totalSeconds).toBe(3600);
 });

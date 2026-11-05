@@ -63,6 +63,7 @@ const isChanged = (row, d) => Boolean(d) &&
 export function setDraft(drafts, row, patch) {
   const base = drafts[row.key] || { start: row.start, end: row.end, assignee: null };
   const draft = { ...base, ...patch, confirmedAt: null };
+  if (row.taskId) draft.taskId = row.taskId;
   if (draft.assignee === row.assignee) draft.assignee = null;
   const next = { ...drafts };
   if (isChanged(row, draft)) next[row.key] = draft;
@@ -81,6 +82,22 @@ export function toggleConfirmAll(drafts, keys, at) {
   return next;
 }
 
+// WBS 행 키(task.jira || task.id)는 로그인·연결에 따라 바뀐다. taskId 를 가진 초안을 현재 행 키로 옮긴다.
+// 옮길 키에 이미 초안이 있으면 덮지 않고 그대로 둔다.
+export function rekeyDrafts(drafts, rows) {
+  const keyOf = new Map(rows.filter((row) => row.taskId).map((row) => [row.taskId, row.key]));
+  const next = { ...drafts };
+  let moved = false;
+  for (const [key, draft] of Object.entries(drafts)) {
+    const target = draft.taskId && keyOf.get(draft.taskId);
+    if (!target || target === key || next[target]) continue;
+    next[target] = draft;
+    delete next[key];
+    moved = true;
+  }
+  return { drafts: next, moved };
+}
+
 export function parseDrafts(text) {
   try {
     const raw = JSON.parse(text || "{}");
@@ -93,6 +110,7 @@ export function parseDrafts(text) {
       const confirmedAt = typeof v.confirmedAt === "string" && v.confirmedAt ? v.confirmedAt : null;
       if (dated || (undated && assignee)) {
         out[key] = { start: v.start ?? null, end: v.end ?? null, assignee, confirmedAt };
+        if (typeof v.taskId === "string" && v.taskId) out[key].taskId = v.taskId;
       }
     }
     return out;

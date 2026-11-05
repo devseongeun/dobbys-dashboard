@@ -3,7 +3,7 @@ import { renderCalendar } from "./calendar.js";
 import { renderIssues } from "./issues.js";
 import { dateRangeText, domainsOf, hoursText, jiraUrl, joinRows, recentWorklogs } from "./model.js";
 import {
-  applyDrafts, changeList, daysBetween, editRange, parseDrafts, parseKeys, renderChanges, setDraft,
+  applyDrafts, changeList, daysBetween, editRange, parseDrafts, parseKeys, rekeyDrafts, renderChanges, setDraft,
   shiftRange, toggleConfirmAll, widenMonths,
 } from "./plan.js";
 import { STATUSES, TABS, matches, parseHash, periodMonths, toHash } from "./state.js";
@@ -107,8 +107,14 @@ async function load(refresh) {
     }
     app.rows = joinRows(tasks, board.issues, todayISO());
     app.extra = [];
+    const rekeyed = rekeyDrafts(app.drafts, app.rows);
+    if (rekeyed.moved) {
+      app.drafts = rekeyed.drafts;
+      saveDrafts();
+    }
     const known = new Set(app.rows.map((r) => r.key));
-    const missing = Object.keys(app.drafts).filter((key) => !known.has(key));
+    // 요구사항ID(미연결 WBS 행) 초안은 Jira 조회 대상이 아니다. Jira 키 모양만 조회한다.
+    const missing = Object.keys(app.drafts).filter((key) => !known.has(key) && /^[A-Z][A-Z0-9]*-\d+$/.test(key));
     if (missing.length) {
       // 담당 변경 이슈 조회 실패는 보드 자체 실패가 아니다. 일정 조정 탭 안내로만 띄운다.
       try {

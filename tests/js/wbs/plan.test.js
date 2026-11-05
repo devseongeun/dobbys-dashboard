@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { renderCalendar } from "../../../tabs/wbs/js/calendar.js";
 import {
-  applyDrafts, changeList, editRange, formatChanges, parseDrafts, parseKeys, renderChanges, setDraft,
+  applyDrafts, changeList, editRange, formatChanges, parseDrafts, parseKeys, rekeyDrafts, renderChanges, setDraft,
   shiftRange, toggleConfirmAll, widenMonths,
 } from "../../../tabs/wbs/js/plan.js";
 
@@ -201,4 +201,32 @@ test("일정 조정 탭은 변경 막대·점선 기존 막대·담당 변경 �
   const html2 = renderCalendar(handOnly, {}, T, {}, { edit: true });
   expect(html2).not.toContain("bar ghost");
   expect(html2).toContain('<span class="ho">박지수→홍길동</span>');
+});
+
+test("setDraft 는 WBS 행의 taskId 를 초안에 남기고 parseDrafts 가 보존한다", () => {
+  const row = { key: "TRBQ-CHM-029", taskId: "TRBQ-CHM-029", start: "2026-11-02", end: "2026-11-06", assignee: null };
+  const drafts = setDraft({}, row, { end: "2026-11-09" });
+  expect(drafts["TRBQ-CHM-029"].taskId).toBe("TRBQ-CHM-029");
+  expect(parseDrafts(JSON.stringify(drafts))["TRBQ-CHM-029"].taskId).toBe("TRBQ-CHM-029");
+  expect(setDraft(drafts, row, { end: "2026-11-06" })).toEqual({});
+});
+
+test("rekeyDrafts 는 taskId 초안을 현재 행 키로 옮기고 되돌린다", () => {
+  const draft = { start: "2026-11-02", end: "2026-11-09", assignee: null, confirmedAt: null, taskId: "TRBQ-CHM-029" };
+  const linked = rekeyDrafts({ "TRBQ-CHM-029": draft }, [{ key: "PROJ-1154", taskId: "TRBQ-CHM-029" }]);
+  expect(linked).toEqual({ drafts: { "PROJ-1154": draft }, moved: true });
+  const back = rekeyDrafts(linked.drafts, [{ key: "TRBQ-CHM-029", taskId: "TRBQ-CHM-029" }]);
+  expect(back).toEqual({ drafts: { "TRBQ-CHM-029": draft }, moved: true });
+});
+
+test("rekeyDrafts 는 taskId 없는 초안을 건드리지 않는다", () => {
+  const drafts = { "PROJ-1": { start: "2026-11-02", end: "2026-11-03", assignee: null, confirmedAt: null } };
+  expect(rekeyDrafts(drafts, [{ key: "PROJ-2", taskId: "PROJ-1" }])).toEqual({ drafts, moved: false });
+});
+
+test("rekeyDrafts 는 대상 키에 초안이 있으면 덮지 않는다", () => {
+  const old = { start: "2026-11-02", end: "2026-11-09", assignee: null, confirmedAt: null, taskId: "TRBQ-1" };
+  const cur = { start: "2026-11-03", end: "2026-11-04", assignee: null, confirmedAt: null };
+  const drafts = { "TRBQ-1": old, "PROJ-9": cur };
+  expect(rekeyDrafts(drafts, [{ key: "PROJ-9", taskId: "TRBQ-1" }])).toEqual({ drafts, moved: false });
 });

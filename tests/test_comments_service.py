@@ -3,6 +3,7 @@ import unittest
 from datetime import date, datetime
 from pathlib import Path
 
+from dashboard.keychain import KeychainError
 from tabs.comments.client import TromboneError
 from tabs.comments.overrides import OverrideStore
 from tabs.comments.service import CommentService, ExportDisabled, NeedLogin, NothingToExport
@@ -96,3 +97,18 @@ class ServiceTest(unittest.TestCase):
         result = service.react(["CM5", "CM5"])
         self.assertEqual(result["applied"], 1)
         self.assertEqual(self.client.reacted, [("CM5", "EMO005", "T")])
+
+
+class BrokenKeychain(MemoryKeychain):
+    def get(self, name):
+        raise KeychainError("키체인 값이 JSON 이 아니다 (test)")
+
+
+class BrokenKeychainTest(unittest.TestCase):
+    def test_keychain_error_is_reported_as_logged_out(self):
+        tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        service = CommentService(FakeClient(), BrokenKeychain({}), OverrideStore(tmp / "o.json"), None)
+        self.assertIsNone(service.session())
+        info = service.describe()
+        self.assertFalse(info["loggedIn"])
+        self.assertIn("JSON", info["error"])

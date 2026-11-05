@@ -4,6 +4,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from pathlib import Path
 
+from dashboard.keychain import KeychainError
+
 from . import model
 from .client import TromboneError
 from .markdown import build_markdown
@@ -32,16 +34,26 @@ class CommentService:
         self._today = today
         self._now = now
 
-    def session(self) -> dict | None:
-        creds = self._keychain.get(KEY)
+    def _read_session(self) -> tuple[dict | None, str | None]:
+        """키체인을 못 읽으면(값 깨짐·시간 초과) 세션 없음으로 보고, 다시 로그인할 수 있게 사유만 돌려준다."""
+        try:
+            creds = self._keychain.get(KEY)
+        except KeychainError as exc:
+            return None, str(exc)
         if not creds or creds.get("base") != self._client.base or not creds.get("token") or not creds.get("name"):
-            return None
-        return creds
+            return None, None
+        return creds, None
+
+    def session(self) -> dict | None:
+        return self._read_session()[0]
 
     def describe(self) -> dict:
-        creds = self.session()
-        return {"loggedIn": creds is not None, "name": creds["name"] if creds else None,
-                "base": self._client.base, "exportEnabled": self._export_dir is not None}
+        creds, error = self._read_session()
+        out = {"loggedIn": creds is not None, "name": creds["name"] if creds else None,
+               "base": self._client.base, "exportEnabled": self._export_dir is not None}
+        if error:
+            out["error"] = error
+        return out
 
     def login(self, login_id: str, password: str) -> str:
         res = self._client.login(login_id, password)

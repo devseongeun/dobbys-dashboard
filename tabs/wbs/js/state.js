@@ -1,13 +1,12 @@
 export const TABS = ["cal", "plan", "board", "issues", "log"];
-export const DOMAINS = ["공통", "티켓", "테스트", "시스템 관리"];
 export const STATUSES = ["할 일", "진행", "완료", "취소"];
 // 기간 필터. 기본은 이번 달만. 해시에는 기본값이 아닐 때만 per=fromThis|all 로 남긴다.
 export const PERIODS = ["thisOnly", "fromThis", "all"];
 
-export function defaultState() {
+export function defaultState(domains = []) {
   return {
     tab: "cal",
-    doms: new Set(DOMAINS),
+    doms: new Set(domains),
     statuses: new Set(STATUSES),
     soloOnly: false,
     period: "thisOnly",
@@ -35,12 +34,12 @@ function parseSet(value, allowed) {
   return picked.length ? new Set(picked) : new Set(allowed);
 }
 
-export function parseHash(hash) {
-  const state = defaultState();
+export function parseHash(hash, domains = []) {
+  const state = defaultState(domains);
   const query = new URLSearchParams(String(hash || "").replace(/^#/, ""));
   const tab = query.get("tab");
   if (TABS.includes(tab)) state.tab = tab;
-  state.doms = parseSet(query.get("dom"), DOMAINS);
+  state.doms = parseSet(query.get("dom"), domains);
   state.statuses = parseSet(query.get("st"), STATUSES);
   state.soloOnly = query.get("solo") === "1";
   const period = query.get("per");
@@ -48,9 +47,9 @@ export function parseHash(hash) {
   return state;
 }
 
-export function toHash(state) {
+export function toHash(state, domains = []) {
   const parts = [`tab=${state.tab}`];
-  if (state.doms.size !== DOMAINS.length) {
+  if (state.doms.size !== domains.length) {
     parts.push("dom=" + [...state.doms].map(encodeURIComponent).join(","));
   }
   if (state.statuses.size !== STATUSES.length) {

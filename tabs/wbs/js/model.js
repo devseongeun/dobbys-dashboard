@@ -24,8 +24,12 @@ export function dateRangeText(start, end) {
   return `${short(start)} ~ ${short(end)}`;
 }
 
-export function jiraUrl(key) {
-  return `https://example.atlassian.net/browse/${key}`;
+export function jiraUrl(domain, key) {
+  return `https://${domain}/browse/${key}`;
+}
+
+export function domainsOf(tasks) {
+  return [...new Set(tasks.map((task) => task.d1).filter(Boolean))];
 }
 
 export function recentWorklogs(worklogs, issueKey, limit) {
@@ -41,9 +45,10 @@ export function joinRows(wbsTasks, issues, today) {
   const usedKeys = new Set();
 
   for (const task of wbsTasks) {
-    const issue = byKey.get(task.jira) || null;
-    usedKeys.add(task.jira);
-    rows.push(buildRow(task, issue, task.jira, today));
+    const issue = task.jira ? byKey.get(task.jira) || null : null;
+    if (task.jira) usedKeys.add(task.jira);
+    // Jira 키가 없는 WBS 행은 요구사항ID 를 행 키로 쓴다(초안·모달이 키로 행을 찾는다).
+    rows.push(buildRow(task, issue, task.jira || task.id, today));
   }
   for (const issue of issues) {
     if (usedKeys.has(issue.key)) continue;
@@ -61,6 +66,8 @@ function buildRow(task, issue, key, today) {
   const statusCategory = issue?.statusCategory || null;
   return {
     key,
+    jiraKey: issue?.key || task?.jira || null,
+    taskId: task ? task.id : null,
     name: issue?.summary || task?.name || key,
     summary: issue?.summary || null,
     status: issue?.status || null,

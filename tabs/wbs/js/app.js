@@ -1,12 +1,12 @@
 import { renderBoard } from "./board.js";
 import { renderCalendar } from "./calendar.js";
 import { renderIssues } from "./issues.js";
-import { dateRangeText, hoursText, jiraUrl, joinRows, recentWorklogs } from "./model.js";
+import { dateRangeText, domainsOf, hoursText, jiraUrl, joinRows, recentWorklogs } from "./model.js";
 import {
   applyDrafts, changeList, daysBetween, editRange, parseDrafts, parseKeys, renderChanges, setDraft,
   shiftRange, toggleConfirmAll, widenMonths,
 } from "./plan.js";
-import { DOMAINS, STATUSES, TABS, matches, parseHash, periodMonths, toHash } from "./state.js";
+import { STATUSES, TABS, matches, parseHash, periodMonths, toHash } from "./state.js";
 import { aggregate, filterByRange, mineOnly, presetRange, renderWorklog } from "./worklog.js";
 
 const esc = (v) => String(v == null ? "" : v)
@@ -16,9 +16,7 @@ const todayISO = () => {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") +
     "-" + String(d.getDate()).padStart(2, "0");
 };
-// 일정 조정 초안은 서버가 로컬 파일(~/Library/Application Support/trb-wbs-jira/plan-drafts.json)에
-// 저장한다. 서버·브라우저를 재기동해도 남는다. Jira 로는 절대 보내지 않는다.
-// 예전 버전은 localStorage 에 두었다. 첫 로드 때 파일로 옮기고 지운다.
+// 일정 조정 초안은 서버가 개인 상태 폴더(plan-drafts.json)에 저장한다. Jira 로는 절대 보내지 않는다.
 const LEGACY_STORE = "trb-wbs-jira:plan-drafts";
 let saving = Promise.resolve(true);
 
@@ -54,7 +52,10 @@ async function loadDrafts() {
 }
 
 const app = {
-  state: parseHash(location.hash),
+  state: parseHash(location.hash, []),
+  domains: [],
+  jira: { domain: null, connected: false },
+  jiraNotice: "",
   wbs: { tasks: [], holidays: {} },
   board: { issues: [], worklogs: [], fetchedAt: null, stale: false, error: null },
   rows: [],
@@ -91,12 +92,20 @@ async function load(refresh) {
   if (!app.draftsReady) await loadDrafts();
   try {
     const [wbs, board] = await Promise.all([
-      fetch("wbs.json").then((r) => r.json()),
+      fetch("api/wbs").then((r) => r.json()),
       fetch("api/board" + (refresh ? "?refresh=1" : "")).then((r) => r.json()),
     ]);
-    app.wbs = wbs;
+    const links = board.links || {};
+    const tasks = wbs.tasks.map((task) => ({ ...task, jira: links[task.id] || null }));
+    app.wbs = { ...wbs, tasks };
     app.board = board;
-    app.rows = joinRows(wbs.tasks, board.issues, todayISO());
+    app.jira = { domain: board.domain, connected: Boolean(board.connected) };
+    const domains = domainsOf(tasks);
+    if (domains.join("|") !== app.domains.join("|")) {
+      app.domains = domains;
+      app.state = parseHash(location.hash, domains);
+    }
+    app.rows = joinRows(tasks, board.issues, todayISO());
     app.extra = [];
     const known = new Set(app.rows.map((r) => r.key));
     const missing = Object.keys(app.drafts).filter((key) => !known.has(key));
@@ -113,6 +122,7 @@ async function load(refresh) {
   } catch (err) {
     app.board = { ...app.board, stale: true, error: "서버 응답 실패: " + err.message };
   }
+  renderJira();
   render();
 }
 
@@ -157,7 +167,7 @@ function renderFilters() {
   const chip = (label, on, attr) =>
     `<button class="f${on ? " on" : ""}" ${attr}>${esc(label)}</button>`;
   document.getElementById("filters").innerHTML =
-    DOMAINS.map((d) => chip(d, app.state.doms.has(d), `data-dom="${esc(d)}"`)).join("") +
+    app.domains.map((d) => chip(d, app.state.doms.has(d), `data-dom="${esc(d)}"`)).join("") +
     '<span class="sep"></span>' +
     STATUSES.map((s) => chip(s, app.state.statuses.has(s), `data-st="${esc(s)}"`)).join("") +
     '<span class="sep"></span>' +
@@ -187,8 +197,9 @@ function renderStats(rows) {
   document.getElementById("synced").textContent =
     app.board.fetchedAt ? "마지막 동기화 " + app.board.fetchedAt.slice(11, 16) : "";
   const banner = document.getElementById("banner");
-  banner.classList.toggle("hidden", !app.board.error);
-  banner.textContent = app.board.error ? "Jira 오류: " + app.board.error : "";
+  const errors = [app.wbs.error && "WBS 오류: " + app.wbs.error, app.board.error && !app.board.authError && "Jira 오류: " + app.board.error].filter(Boolean);
+  banner.classList.toggle("hidden", !errors.length);
+  banner.textContent = errors.join(" · ");
 }
 
 function scrollToToday(behavior) {
@@ -231,7 +242,7 @@ function render() {
   } else if (app.state.tab === "board") {
     panel.innerHTML = renderBoard(visible);
   } else if (app.state.tab === "issues") {
-    panel.innerHTML = renderIssues(visible, app.sort);
+    panel.innerHTML = renderIssues(visible, app.sort, app.jira);
   } else {
     const range = app.range || presetRange(app.preset, today);
     // 워크로그는 자체 기간으로 자르므로 기간 필터를 적용하지 않는다(월초 '지난 주' 누락 방지).
@@ -244,7 +255,7 @@ function render() {
       aggregate(logs, range.from, range.to),
       filterByRange(logs, range.from, range.to));
   }
-  history.replaceState(null, "", location.pathname + toHash(app.state));
+  history.replaceState(null, "", location.pathname + toHash(app.state, app.domains));
 }
 
 function openModal(key) {
@@ -255,8 +266,11 @@ function openModal(key) {
     `<button class="close" id="mclose">×</button><h3>${esc(row.name)}</h3>` +
     `<div class="dim">${esc([row.domain, row.menu].filter(Boolean).join(" › "))}</div>` +
     `<dl class="kv">` +
-    `<dt>Jira</dt><dd><a href="${esc(jiraUrl(row.key))}" target="_blank" rel="noreferrer">${esc(row.key)}</a>` +
-    `<button class="copy" data-copy="${esc(jiraUrl(row.key))}" title="링크 복사">🔗</button> · ${esc(row.status || "상태 없음")}</dd>` +
+    `<dt>Jira</dt><dd>${row.jiraKey
+      ? `<a href="${esc(jiraUrl(app.jira.domain, row.jiraKey))}" target="_blank" rel="noreferrer">${esc(row.jiraKey)}</a>` +
+        `<button class="copy" data-copy="${esc(jiraUrl(app.jira.domain, row.jiraKey))}" title="링크 복사">🔗</button> · ${esc(row.status || "상태 없음")}`
+      : "미연결"}` +
+    `${app.jira.connected && row.taskId ? ` <button class="copy" data-link="${esc(row.taskId)}">이슈 연결</button>` : ""}</dd>` +
     `<dt>계획 기간</dt><dd>${dateRangeText(row.start, row.end)}${row.md ? ` (${row.md} M/D)` : ""}</dd>` +
     `<dt>담당자</dt><dd>${esc(row.assignee || "—")}</dd>` +
     `<dt>계획/실제 시작</dt><dd>${esc(row.planStart || "—")} / ${esc(row.actualStart || "—")}</dd>` +
@@ -377,6 +391,8 @@ document.getElementById("panel").onclick = (event) => {
     render();
     return;
   }
+  const link = event.target.closest("[data-link]");
+  if (link) { linkIssue(link.dataset.link); return; }
   const item = event.target.closest("[data-key]");
   if (item) openModal(item.dataset.key);
 };
@@ -470,6 +486,73 @@ document.addEventListener("keydown", (e) => {
   if (next === "cal" || next === "plan") app.calScrolled = false;
   render();
   document.querySelector(`.tab[data-tab="${next}"]`).focus();
+});
+
+// Jira 연동은 선택이다. 로그인 폼은 load() 뒤에만 다시 그린다(입력 중인 값을 지우지 않게 render() 와 분리).
+function renderJira() {
+  const box = document.getElementById("jira");
+  const who = document.getElementById("jirawho");
+  if (app.jira.connected) {
+    box.classList.add("hidden");
+    who.innerHTML = `Jira ${esc(app.board.me?.displayName || "")} · <button class="f" id="jiraout">로그아웃</button>`;
+    return;
+  }
+  who.textContent = "";
+  box.classList.remove("hidden");
+  box.innerHTML = (app.board.authError
+    ? "<b>Jira 인증이 만료됐다. 다시 로그인한다.</b> "
+    : "Jira 연동(선택) — 로그인하면 Jira 일정·상태가 WBS보다 우선한다. ") +
+    '<input id="jemail" type="email" placeholder="Jira 이메일" autocomplete="username">' +
+    '<input id="jtoken" type="password" placeholder="API token" autocomplete="current-password">' +
+    '<button class="f" id="jiralogin">로그인</button> ' +
+    '<a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer">API token 만들기</a>' +
+    (app.jiraNotice ? ` <span class="err">${esc(app.jiraNotice)}</span>` : "");
+}
+
+async function postJson(url, body, method = "POST") {
+  const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+  return data;
+}
+
+async function jiraLogin() {
+  const email = document.getElementById("jemail").value.trim();
+  const token = document.getElementById("jtoken").value.trim();
+  if (!email || !token) { app.jiraNotice = "이메일과 API token 을 입력한다"; renderJira(); return; }
+  try {
+    await postJson("api/login", { email, token });
+    app.jiraNotice = "";
+    await load(true);
+  } catch (err) {
+    app.jiraNotice = err.message;
+    renderJira();
+  }
+}
+
+async function linkIssue(taskId) {
+  const current = app.wbs.tasks.find((t) => t.id === taskId)?.jira || "";
+  const input = prompt(`${taskId} 에 연결할 Jira 이슈키 (예: PROJ-1234). 비우면 연결을 해제한다.`, current);
+  if (input === null) return;
+  try {
+    await postJson("api/links", { task: taskId, key: input.trim().toUpperCase() || null }, "PUT");
+    closeModal();
+    await load(true);
+  } catch (err) {
+    alert("연결 실패: " + err.message);
+  }
+}
+
+document.addEventListener("click", (event) => {
+  if (event.target.id === "jiralogin") jiraLogin();
+  else if (event.target.id === "jiraout") postJson("api/logout", {}).then(() => load(true));
+});
+document.getElementById("jira").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && event.target.id === "jtoken") jiraLogin();
+});
+document.getElementById("modal").addEventListener("click", (event) => {
+  const link = event.target.closest("[data-link]");
+  if (link) linkIssue(link.dataset.link);
 });
 
 load(false);

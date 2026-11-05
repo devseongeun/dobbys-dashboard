@@ -3,6 +3,20 @@ import { dateRangeText, hoursText, jiraUrl } from "./model.js";
 const esc = (v) => String(v == null ? "" : v)
   .replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+const linkButton = (row, jira, label, title) => jira.connected && row.taskId
+  ? `<button class="copy" data-link="${esc(row.taskId)}" title="${title}">${label}</button>` : "";
+
+function keyCell(row, jira) {
+  if (!row.jiraKey) {
+    return `<span class="dim">${esc(row.taskId || row.key)}</span>` + linkButton(row, jira, "이슈 연결", "Jira 이슈 연결");
+  }
+  const url = jiraUrl(jira.domain, row.jiraKey);
+  return `<a href="${esc(url)}" target="_blank" rel="noreferrer">${esc(row.jiraKey)}</a>` +
+    `<button class="copy" data-copy="${esc(row.jiraKey)}" title="이슈키 복사">⧉</button>` +
+    `<button class="copy" data-copy="${esc(url)}" title="링크 복사">🔗</button>` +
+    linkButton(row, jira, "✎", "연결 바꾸기");
+}
+
 const ACCESSOR = {
   status: (r) => r.status,
   key: (r) => r.key,
@@ -34,7 +48,7 @@ const COLUMNS = [
   ["duedate", "기한"], ["", "D-day"], ["md", "계획 M/D"], ["spent", "누적시간"],
 ];
 
-export function renderIssues(rows, sort) {
+export function renderIssues(rows, sort, jira = { domain: null, connected: false }) {
   if (!rows.length) return '<div class="empty">조건에 해당하는 작업이 없다.</div>';
 
   const head = COLUMNS.map(([key, label]) => {
@@ -47,10 +61,7 @@ export function renderIssues(rows, sort) {
     `<tr class="row${row.overdue ? " is-overdue" : ""}${row.status === "개발완료" ? " is-devdone" : ""}"` +
     ` data-key="${esc(row.key)}">` +
     `<td><span class="sdot s-${esc(row.status || "none")}"></span>${esc(row.status || "—")}</td>` +
-    `<td class="mono"><a href="${esc(jiraUrl(row.key))}"` +
-    ` target="_blank" rel="noreferrer">${esc(row.key)}</a>` +
-    `<button class="copy" data-copy="${esc(row.key)}" title="이슈키 복사">⧉</button>` +
-    `<button class="copy" data-copy="${esc(jiraUrl(row.key))}" title="링크 복사">🔗</button></td>` +
+    `<td class="mono">${keyCell(row, jira)}</td>` +
     `<td>${esc(row.name)}</td>` +
     `<td>${esc(row.domain || "—")}</td>` +
     `<td class="mono">${esc(row.screen || "—")}</td>` +

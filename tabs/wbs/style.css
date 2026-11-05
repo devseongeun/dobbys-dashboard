@@ -130,3 +130,6 @@ button.f.pck.done{border-color:var(--acc);color:var(--acc);font-weight:600}
 .bar.is-draft{outline:1px solid var(--acc);outline-offset:-1px}
 .bar.ghost{background:none;border:1px dashed #4b5366;color:var(--dim);cursor:default;pointer-events:none}
 body.dragging,body.dragging .bar{cursor:grabbing;user-select:none}
+#jira input { margin: 0 4px; padding: 3px 6px; border: 1px solid currentColor; border-radius: 5px; background: transparent; color: inherit; font: inherit; }
+#jira .err { color: #e5484d; }
+#jira a { color: inherit; }

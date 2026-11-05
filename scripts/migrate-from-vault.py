@@ -85,7 +85,10 @@ def main() -> int:
 def _migrate_links(args: argparse.Namespace, old: dict, cache: dict) -> None:
     issues = {i["key"]: i for i in cache.get("issues", [])}
     tasks = {t["id"]: t for t in read_wbs(args.workbook, args.sheet, args.owner)["tasks"]}
-    auto = match_keys(list(tasks.values()), list(issues.values()), {})
+    # 새 보드는 수동 연결 없이 내 담당 이슈만 가져오므로, 자동 매칭 비교도 내 담당 이슈로 한정한다.
+    me = (cache.get("me") or {}).get("displayName")
+    mine = [i for i in issues.values() if me and i.get("assignee") == me]
+    auto = match_keys(list(tasks.values()), mine, {})
     links = LinkStore(STATE_ROOT / "wbs" / "links.json")
     print("[..] WBS-Jira 연결: 자동 매칭과 다른 것만 수동 연결로 옮긴다. 아래 목록을 검토한다.")
     for task in old.get("tasks", []):

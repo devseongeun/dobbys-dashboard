@@ -41,6 +41,15 @@ class StoreTest(unittest.TestCase):
         self.store.path.parent.mkdir(parents=True)
         self.store.path.write_text('{"version": 99, "tabs": {}}', encoding="utf-8")
         self.assertIsNone(self.store.load())
+        self.assertFalse(self.store.path.exists())
+        self.assertTrue((self.store.path.parent / "config.json.broken-1700000000").exists())
+
+    def test_non_utf8_file_is_set_aside(self):
+        self.store.path.parent.mkdir(parents=True)
+        self.store.path.write_bytes(b"\xff\xfe{")
+        self.assertIsNone(self.store.load())
+        self.assertFalse(self.store.path.exists())
+        self.assertTrue((self.store.path.parent / "config.json.broken-1700000000").exists())
 
 
 class NormalizeTest(unittest.TestCase):
@@ -71,6 +80,10 @@ class NormalizeTest(unittest.TestCase):
                          {"m": {"folder": "폴더가 없다"}})
         self.assertEqual(normalize(self.tabs, {"tabs": {"w": {"book": str(self.meetings)}}})[1],
                          {"w": {"book": "파일이 없다"}})
+
+    def test_nul_in_path_is_field_error(self):
+        self.assertEqual(normalize(self.tabs, {"tabs": {"m": {"folder": "/tmp/a\x00b"}}})[1],
+                         {"m": {"folder": "경로 형식이 아니다"}})
 
     def test_paths_with_spaces_korean_and_tilde_are_normalized(self):
         with mock.patch.dict(os.environ, {"HOME": str(self.root)}):

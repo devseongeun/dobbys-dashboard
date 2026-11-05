@@ -46,3 +46,14 @@ class KeychainTest(unittest.TestCase):
         Keychain(run=FakeRun((44, ""))).delete("jira")
         with self.assertRaises(KeychainError):
             Keychain(run=FakeRun((1, ""))).delete("jira")
+
+    def test_timeout_or_missing_command_raises_keychain_error(self):
+        for error in (subprocess.TimeoutExpired(["security"], 10), FileNotFoundError("security")):
+            def run(args, **kwargs):
+                raise error
+            keychain = Keychain(run=run)
+            for call in (lambda: keychain.get("jira"), lambda: keychain.set("jira", {"token": "s3cret"}),
+                         lambda: keychain.delete("jira")):
+                with self.assertRaises(KeychainError) as caught:
+                    call()
+                self.assertNotIn("s3cret", str(caught.exception))

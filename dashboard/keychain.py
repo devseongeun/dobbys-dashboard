@@ -26,7 +26,14 @@ class Keychain:
         return f"{self._prefix}.{name}"
 
     def _call(self, args: list[str], stdin: str | None = None):
-        return self._run(["security", *args], input=stdin, capture_output=True, text=True, timeout=TIMEOUT)
+        """security 실행 자체가 실패하면(잠김으로 인한 시간 초과·명령 없음) KeychainError 로 바꾼다. 비밀값은 싣지 않는다."""
+        service = args[args.index("-s") + 1]
+        try:
+            return self._run(["security", *args], input=stdin, capture_output=True, text=True, timeout=TIMEOUT)
+        except subprocess.TimeoutExpired:
+            raise KeychainError(f"키체인 응답 시간 초과 ({service})") from None
+        except OSError as exc:
+            raise KeychainError(f"키체인 명령 실행 실패 ({service}, {type(exc).__name__})") from None
 
     def get(self, name: str) -> dict | None:
         done = self._call(["find-generic-password", "-s", self._service(name), "-a", ACCOUNT, "-w"])

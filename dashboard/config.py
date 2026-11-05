@@ -21,19 +21,21 @@ class ConfigStore:
     def load(self) -> dict | None:
         """없으면 None. 깨졌거나 모르는 버전이면 옆으로 치우고 None(온보딩을 다시 띄운다)."""
         try:
-            raw = self.path.read_text(encoding="utf-8")
+            data = json.loads(self.path.read_text(encoding="utf-8"))
         except FileNotFoundError:
             return None
-        try:
-            data = json.loads(raw)
-            if not isinstance(data, dict) or data.get("version") != VERSION or not isinstance(data.get("tabs"), dict):
-                raise ValueError("config 형식이 아니다")
         except ValueError as exc:
-            aside = self.path.with_name(f"{self.path.name}.broken-{int(self._clock())}")
-            self.path.replace(aside)
-            print(f"[WARN] {self.path} 를 읽지 못해 {aside.name} 로 옮겼다: {exc}", file=sys.stderr)
-            return None
+            return self._set_aside(exc)
+        if not isinstance(data, dict) or data.get("version") != VERSION or not isinstance(data.get("tabs"), dict):
+            return self._set_aside(ValueError("config 형식이 아니다"))
         return data
+
+    def _set_aside(self, exc: Exception) -> None:
+        """읽지 못한 파일을 broken-<시각> 으로 옮긴다(UTF-8 이 아니거나 JSON·형식이 틀린 경우)."""
+        aside = self.path.with_name(f"{self.path.name}.broken-{int(self._clock())}")
+        self.path.replace(aside)
+        print(f"[WARN] {self.path} 를 읽지 못해 {aside.name} 로 옮겼다: {exc}", file=sys.stderr)
+        return None
 
     def save(self, data: dict) -> None:
         """임시 파일에 쓰고 교체한다. 권한은 0600."""
@@ -54,6 +56,9 @@ def _path(text: str) -> str:
 
 
 def _field(field: Field, raw) -> tuple[object, str | None]:
+    items = raw if isinstance(raw, list) else [raw]
+    if field.kind != "text" and any("\x00" in str(item) for item in items if item is not None):
+        return ("" if field.kind != "dirs" else []), "경로 형식이 아니다"
     if field.kind == "dirs":
         items = raw if isinstance(raw, list) else str(raw or "").splitlines()
         paths = [_path(str(item)) for item in items if str(item).strip()]

@@ -9,7 +9,7 @@
 - `Host`가 localhost가 아니면 403(DNS 리바인딩 방어), GET 외에는 405.
 
 사용:
-  평소에는 업무 대시보드(projects/work/work-dashboard, http://127.0.0.1:8787/#plans)가 make_handler 를 /plans/ 아래에 올린다.
+  대시보드(저장소 루트 serve.py, http://127.0.0.1:8787/#plans)가 tabs/plans/ 의 make_handler 를 /plans/ 아래에 올린다. 폴더는 설정에서 고른다.
   스크립트·뷰어를 고친 뒤에는 `launchctl kickstart -k gui/$(id -u)/com.dobbys-dashboard` 로 대시보드를 재시작한다.
 """
 import json

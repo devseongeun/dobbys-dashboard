@@ -1,4 +1,4 @@
-"""70-meetings 회의 자료(Canvas) 로컬 서버. 127.0.0.1 에만 바인딩한다.
+"""회의 자료(Canvas, 설정에서 고른 회의 폴더) 로컬 서버. 127.0.0.1 에만 바인딩한다.
 
 - `/`는 회의 자료 화면(`meetings.html`), `/meetings.js`·`/meetings_lib.js`·`/meetings.css`는 화면 파일,
   `/marked.umd.js`는 md 렌더러(`tabs/_common/vendor/`)다.
@@ -10,7 +10,7 @@
 - 요청마다 Canvas를 다시 읽는다. `Host`가 localhost가 아니면 403(DNS 리바인딩 방어), GET·POST 외에는 405.
 
 대시보드가 make_handler 를 /meetings/ 아래에 올린다.
-설계: projects/work/work-dashboard/docs/superpowers/specs/2026-11-04-meetings-canvas-design.md
+설계: docs/superpowers/specs/2026-11-04-meetings-canvas-design.md
 """
 import json
 import sys

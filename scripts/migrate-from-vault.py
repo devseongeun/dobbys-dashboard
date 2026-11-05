@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""옛 work-dashboard(Vault 안 서버 코드)의 개인 상태를 dobbys-dashboard 로 한 번 옮긴다.
+"""옛 Vault 안 업무 대시보드 서버 코드의 개인 상태를 dobbys-dashboard 로 한 번 옮긴다.
 
 옮기는 것: 일정 조정 초안, WBS-Jira 수동 연결(자동 매칭과 다른 것만), 주간 보고 확인 상태,
 코멘트 우선순위·보류, Jira 자격증명(.jira_config.ini → 키체인). 설정(config.json)은 온보딩에서 입력한다.

@@ -113,7 +113,7 @@ def render_html(sections: dict) -> str:
         "API": "api/plans",
         "SHELL": "plans",
         "NORES": "진행 중·할 일·완료·참고 어디에도 맞는 계획이 없다.",
-        "SRC": "자동 생성 파일이다. 원본은 <code>10-plans/*.md</code> frontmatter·체크박스와 <code>00_10-plans_기능구분.md</code>이고, <code>plans_index.py</code> 실행 또는 대시보드 새로고침으로 갱신된다. 계획을 누르면 md 뷰어가 열린다(서버에서 열었을 때).",
+        "SRC": "자동 생성 파일이다. 원본은 <code>10-plans/*.md</code> frontmatter·체크박스와 <code>00_10-plans_기능구분.md</code>이고, 대시보드 화면의 ⟳ 새로고침으로 다시 만든다. 계획을 누르면 md 뷰어가 열린다(서버에서 열었을 때).",
         "STYLE": STYLE + EXTRA_STYLE, "SCRIPT": SCRIPT,
         "STATS": stats, "TABS": tabs, "CHIPS": chips, "PANELS": panels,
     })

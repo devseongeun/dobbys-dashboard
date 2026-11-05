@@ -4,7 +4,7 @@
 `00_90-assets_목록.md`(원본)를 읽어 `00_90-assets_목록.html`을 다시 쓴다.
 - md의 `## 진행 중 (n)` / `## 종결 (n)` / `## 참고 (n)` 구역과 표만 읽는다. HTML 문서를 직접 열지 않는다.
 - 탭(진행 중·종결·참고), 기능 구분 필터, 검색은 파일 안 JS로 동작한다(외부 의존 없음).
-- 생성 시각을 넣지 않는다. 같은 md면 같은 HTML이 나와야 `assets_index.py --check`가 안정적이다.
+- 생성 시각을 넣지 않는다. 같은 md면 같은 HTML이 나와야 `assets_index.sync(folder, check=True)`가 안정적이다.
 
 `assets_index.sync(folder)`가 md를 쓴 뒤 함께 호출한다.
 """
@@ -184,7 +184,7 @@ def render_html(md: str) -> str:
         "API": "api/assets",
         "SHELL": "assets",
         "NORES": "진행 중·종결·참고 어디에도 맞는 문서가 없다.",
-        "SRC": "자동 생성 파일이다. 원본은 <code>00_90-assets_목록.md</code>이고, <code>assets_index.py</code> 실행 또는 서버(<code>assets_serve.py</code>)의 새로고침으로 갱신된다.",
+        "SRC": "자동 생성 파일이다. 원본은 <code>00_90-assets_목록.md</code>이고, 대시보드 화면의 ⟳ 새로고침으로 다시 만든다.",
         "STYLE": STYLE, "SCRIPT": SCRIPT,
         "STATS": stats, "TABS": tabs, "CHIPS": chips, "PANELS": panels,
     })
@@ -282,7 +282,7 @@ PAGE = """<!doctype html>
     <div class="sync">
       <span id="synced" class="dim"></span>
       <button id="refresh" class="f">⟳ 새로고침</button>
-      <a id="serve" class="f hidden" href="http://127.0.0.1:8787/#{{SHELL}}" title="업무 대시보드(projects/work/work-dashboard/serve.py)에서 연다">서버에서 열기 ↗</a>
+      <a id="serve" class="f hidden" href="http://127.0.0.1:8787/#{{SHELL}}" title="대시보드(serve.py)에서 연다">서버에서 열기 ↗</a>
     </div>
   </header>
 

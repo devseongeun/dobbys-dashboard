@@ -1,7 +1,7 @@
 """회의 자료 화면의 Vault 트리·파일 검색. 숨김(`.`으로 시작) 항목과 Vault 밖을 가리키는 심볼릭 링크는 보이지 않는다.
 
 이름·경로는 NFC로 돌려준다(macOS 파일명이 NFD여도 브라우저 검색어·Canvas 경로와 맞게).
-설계: projects/work/work-dashboard/docs/superpowers/specs/2026-11-04-meetings-canvas-design.md
+설계: docs/superpowers/specs/2026-11-04-meetings-canvas-design.md
 """
 from __future__ import annotations
 

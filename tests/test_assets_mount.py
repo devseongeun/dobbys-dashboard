@@ -19,6 +19,10 @@ class AssetsMountTest(unittest.TestCase):
     def test_index_is_generated_in_the_configured_folder_and_served(self):
         self.assertTrue((self.folder / "00_90-assets_목록.md").exists())
         self.assertTrue((self.folder / "00_90-assets_목록.html").exists())
+        for name in ("00_90-assets_목록.md", "00_90-assets_목록.html"):
+            text = (self.folder / name).read_text(encoding="utf-8")
+            self.assertIn("대시보드 화면의 ⟳ 새로고침으로 다시 만든다", text)
+            self.assertNotIn("work-dashboard", text)
         self.assertEqual(request(self, self.port, "GET", "/assets/")[0], 200)
 
     def test_missing_feature_table_is_a_tab_warning_not_a_failure(self):

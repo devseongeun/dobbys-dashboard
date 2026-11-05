@@ -93,6 +93,9 @@ class SyncTest(unittest.TestCase):
         html = (self.dir / "00_10-plans_목록.html").read_text(encoding="utf-8")
         self.assertIn('href="view.html#2026-11-01%20%EB%A7%A4%ED%95%91%EB%90%A8.md"', html)
         self.assertIn('data-features="외부 결재|배포"', html)
+        for text in (md, html):
+            self.assertIn("대시보드 화면의 ⟳ 새로고침으로 다시 만든다", text)
+            self.assertNotIn("scripts/", text)
 
     def test_check_mode_reports_stale_without_writing(self):
         self.assertEqual(plans_index.sync(self.dir, check=True)["stale"], ["00_10-plans_목록.md", "00_10-plans_목록.html"])

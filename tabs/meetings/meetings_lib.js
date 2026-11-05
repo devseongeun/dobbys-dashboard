@@ -1,4 +1,4 @@
-// 회의 자료 화면(meetings.js)의 순수 함수. DOM·네트워크를 쓰지 않는다. work-dashboard/tests/meetings_lib.test.js 가 검사한다.
+// 회의 자료 화면(meetings.js)의 순수 함수. DOM·네트워크를 쓰지 않는다. tests/js/ 가 검사한다.
 const FENCE = /^\s*(```|~~~)/;
 const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
 const escapeHtml = (text) => text.replace(/[&<>"]/g, (c) => HTML_ESCAPES[c]);

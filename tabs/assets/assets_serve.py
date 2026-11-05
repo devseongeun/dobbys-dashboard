@@ -5,10 +5,10 @@
 - `GET /api/assets?refresh=1`은 `assets_index.sync(folder)`로 목록 md·HTML을 다시 만들고 결과를 JSON으로 준다.
   `refresh` 없이 부르면 마지막 동기화 결과만 준다. 화면의 `⟳ 새로고침` 버튼이 쓴다.
 - 기동할 때 한 번 동기화한다.
-- `90-assets/` 바로 아래 파일만 준다(하위 폴더·숨김 파일·상위 경로 거절). `Host`가 localhost가 아니면 403(DNS 리바인딩 방어).
+- 설정에서 고른 의사결정 폴더 바로 아래 파일만 준다(하위 폴더·숨김 파일·상위 경로 거절). `Host`가 localhost가 아니면 403(DNS 리바인딩 방어).
 
 사용:
-  평소에는 업무 대시보드(projects/work/work-dashboard, http://127.0.0.1:8787/#assets)가 이 모듈의 make_handler 를 /assets/ 아래에 올린다.
+  대시보드(저장소 루트 serve.py, http://127.0.0.1:8787/#assets)가 tabs/assets/ 의 make_handler 를 /assets/ 아래에 올린다.
 
 상주: 업무 대시보드 launchd `com.dobbys-dashboard`.
   스크립트(템플릿 포함)를 고친 뒤에는 `launchctl kickstart -k gui/$(id -u)/com.dobbys-dashboard` 로 재시작한다. 상주 프로세스는 옛 코드를 메모리에 들고 있다.
@@ -21,7 +21,6 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
-HOST = "127.0.0.1"
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1"}
 MIME = {
     ".html": "text/html; charset=utf-8",

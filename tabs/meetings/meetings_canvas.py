@@ -1,10 +1,10 @@
-"""70-meetings 회의 자료 Canvas 읽기. HTTP와 무관한 순수 함수만 둔다(meetings_serve.py·meetings_edit.py 가 쓴다).
+"""회의 자료 Canvas 읽기(설정에서 고른 회의 폴더). HTTP와 무관한 순수 함수만 둔다(meetings_serve.py·meetings_edit.py 가 쓴다).
 
-- 회의 1건 = `TRB_400/70-meetings/` 바로 아래 `.canvas` 1개, 안건 블록 1개 = Canvas 그룹 1개.
+- 회의 1건 = 회의 폴더 바로 아래 `.canvas` 1개, 안건 블록 1개 = Canvas 그룹 1개.
 - 노드 사각형이 그룹 사각형 안에 완전히 들어가면(경계 포함) 그 그룹 소속, 여럿이면 면적이 가장 작은 그룹, 없으면 `미분류`.
 - 블록 순서는 Canvas 위치(y, x). 블록 안 항목 순서는 `.order/<회의 id>.json`에 적힌 id를 먼저, 나머지는 위치순.
 - Obsidian이 새로 만든 `{}` Canvas는 빈 회의다. `version`은 Canvas·순서 파일 내용 해시(쓰기 충돌 확인용).
-설계: projects/work/work-dashboard/docs/superpowers/specs/2026-11-04-meetings-canvas-design.md
+설계: docs/superpowers/specs/2026-11-04-meetings-canvas-design.md
 """
 from __future__ import annotations
 

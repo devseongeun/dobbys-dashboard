@@ -155,8 +155,8 @@ def render(sections: dict) -> str:
         "# 10-plans 목록",
         "",
         "> 자동 생성 노트다. 직접 고치지 않는다.",
-        "> 계획 md를 추가하거나 frontmatter `status`·`progress`를 고친 뒤 `python3 projects/work/TRB_400/20-implementation-notes/scripts/plans_index.py`로 다시 만든다.",
-        "> 같은 실행에서 [[00_10-plans_목록.html|구현 진행 현황 HTML]]도 다시 만든다. 업무 대시보드(http://127.0.0.1:8787/#plans)에서 열면 화면의 `⟳ 새로고침`이 같은 갱신을 하고, 계획을 누르면 md 뷰어가 열린다.",
+        "> 계획 md를 추가하거나 frontmatter `status`·`progress`를 고친 뒤 대시보드 화면의 ⟳ 새로고침으로 다시 만든다.",
+        "> 같은 갱신에서 [[00_10-plans_목록.html|구현 진행 현황 HTML]]도 다시 만든다. 대시보드(http://127.0.0.1:8787/#plans)에서 열면 계획을 누를 때 md 뷰어가 열린다.",
         "> 기능 구분은 [[00_10-plans_기능구분]]에서 읽는다. 체크의 ⚠는 상태가 완료인데 `- [ ]`가 남은 계획이다.",
         "",
     ]

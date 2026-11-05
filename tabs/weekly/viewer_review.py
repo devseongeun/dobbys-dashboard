@@ -6,10 +6,10 @@
 
 확인 상태의 진실은 두 갈래다.
 
-- 서버 모드: 헬퍼 서버(serve.py)가 있는 http 접속이면 `GET/PUT /api/reviewed`
-  로 폴더 안 `reviewed.json`을 읽고 쓴다. 기기·브라우저를 옮겨도 남고 git diff 가 된다.
+- 서버 모드: 대시보드(serve.py)의 /weekly/ 로 열었으면 `GET/PUT /api/reviewed`
+  로 개인 상태 폴더의 `reviewed.json`을 읽고 쓴다. 기기·브라우저를 옮겨도 남는다.
   이 모드에서는 localStorage를 읽지도 쓰지도 않는다(진실이 둘로 갈리는 것을 막는다).
-- 로컬 모드: `file://`로 직접 열었거나 헬퍼 서버가 죽어 있으면
+- 로컬 모드: `file://`로 직접 열었거나 대시보드가 꺼져 있으면
   localStorage['weekly-viewer:reviewed']로 낮춰 동작한다.
 
 어느 쪽이든 자료 모양은 `{ "<slug>": "<ISO8601>" }` 로 같다.

@@ -4,7 +4,7 @@
 - 저장은 같은 폴더 임시 파일 → os.replace. 읽은 JSON 객체를 고쳐 쓰므로 모르는 필드·id·edges 가 남는다. 탭 들여쓰기.
 - 블록 안 순서만 바꿀 때는 `.order/<회의 id>.json`만 쓰고 Canvas 배치는 그대로 둔다.
 - 카드 추가·다른 블록 이동은 대상 그룹 맨 아래에 놓고, 모자라면 그룹을 늘리고 그 아래 노드를 민다.
-설계: projects/work/work-dashboard/docs/superpowers/specs/2026-11-04-meetings-canvas-design.md
+설계: docs/superpowers/specs/2026-11-04-meetings-canvas-design.md
 """
 from __future__ import annotations
 

@@ -1,8 +1,8 @@
 """상단바 '최신화' 버튼 조각 — CSS / 마크업 / JS.
 
 뷰어는 정적 HTML이라 스스로 generate_viewer.py를 실행할 수 없다.
-serve.py(로컬 헬퍼 서버)의 POST /api/regenerate 를 눌러 재생성한다.
-헬퍼 서버가 없으면 실행 방법을 알려 주는 안내 패널을 띄운다.
+대시보드(serve.py)의 /weekly/ 아래 POST /api/regenerate 를 눌러 재생성한다.
+대시보드에 닿지 않으면 실행 방법을 알려 주는 안내 패널을 띄운다.
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def _env_port() -> int:
 DEFAULT_PORT = _env_port()
 
 CSS = '''
-/* 최신화 버튼 — 로컬 헬퍼 서버 연동 */
+/* 최신화 버튼 — 대시보드 연동 */
 #refreshBtn{white-space:nowrap}
 .refresh-label{margin-left:1px}
 #refreshBtn[data-state="busy"]{color:var(--faint);opacity:.72;cursor:progress}
@@ -88,7 +88,7 @@ def button_html(port: int = DEFAULT_PORT) -> str:
 
 
 JS = '''
-  // ---- 최신화: 로컬 헬퍼 서버에 재생성 요청 -------------------------------
+  // ---- 최신화: 대시보드에 재생성 요청 -------------------------------
 
   function refreshButton(){
     return document.getElementById('refreshBtn');
@@ -145,13 +145,13 @@ JS = '''
     var base = refreshBaseUrl(button);
     var address = base ? base + '/' : '';
     var fileMode = mode === 'file';
-    var head = fileMode ? 'file:// 로 열면 최신화를 쓸 수 없습니다' : '헬퍼 서버가 꺼져 있습니다';
+    var head = fileMode ? 'file:// 로 열면 최신화를 쓸 수 없습니다' : '대시보드가 꺼져 있습니다';
     var lead = fileMode
       ? '<p>이 뷰어가 파일로 직접 열려 있어 재생성 요청을 보낼 수 없습니다. '
-        + '대시보드가 꺼져 있습니다. 터미널에서 아래 명령으로 대시보드를 띄운 뒤'
-        + (address ? ' <b>' + esc(address) + '</b> 주소로' : ' 헬퍼 서버 주소로')
-        + ' 다시 열어 주세요.</p>'
-      : '<p>최신화는 로컬 헬퍼 서버를 통해 generate_viewer.py를 실행합니다. '
+        + '파일로 열지 말고 대시보드'
+        + (address ? ' <b>' + esc(address) + '</b> 주소로' : ' 주소로')
+        + ' 열어 주세요. 대시보드가 떠 있지 않으면 아래 명령으로 띄웁니다.</p>'
+      : '<p>최신화는 대시보드를 통해 주간 보고 화면을 다시 만듭니다. '
         + '대시보드가 꺼져 있습니다. 터미널에서 아래 명령으로 대시보드를 띄운 뒤 '
         + '다시 눌러 주세요.</p>';
     var acts = '<button class="act primary" type="button" id="refreshCopy">명령 복사</button>';

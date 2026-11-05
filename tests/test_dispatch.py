@@ -47,18 +47,38 @@ def raw_exchange(port: int, request: bytes, timeout: float = 3.0) -> bytes:
             chunks.append(chunk)
 
 
+class StubDashboard:
+    def __init__(self, mounts):
+        self.mounts = {m.id: m for m in mounts}
+        self.applied = []
+        self.reply = (200, {"configured": True})
+
+    def mount(self, mount_id):
+        return self.mounts.get(mount_id)
+
+    def status(self):
+        return [{"id": m.id, "ok": m.handler is not None, "error": m.error} for m in self.mounts.values()]
+
+    def describe(self):
+        return {"configured": True, "tabs": [], "enabled": list(self.mounts), "values": {}}
+
+    def apply(self, payload):
+        self.applied.append(payload)
+        return self.reply
+
+
 class DispatchTest(unittest.TestCase):
     def setUp(self):
         shell = Path(self.enterContext(tempfile.TemporaryDirectory()))
         (shell / "index.html").write_text("<h1>셸</h1>", encoding="utf-8")
         (shell / "shell.js").write_text("export {};", encoding="utf-8")
         (shell / "secret.txt").write_text("LEAK", encoding="utf-8")
-        mounts = [
+        self.dashboard = StubDashboard([
             Mount("echo", EchoHandler),
             Mount("boom", BoomHandler),
             Mount("broken", None, "ConfigError: 설정 없음"),
-        ]
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_dispatcher(mounts, shell))
+        ])
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_dispatcher(self.dashboard, shell))
         self.server.daemon_threads = True
         self.port = self.server.server_address[1]
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
@@ -136,6 +156,23 @@ class DispatchTest(unittest.TestCase):
     def test_http10_inner_response_closes_keepalive_connection(self):
         raw = raw_exchange(self.port, b"GET /echo/ HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
         self.assertTrue(raw.startswith(b"HTTP/1.0 200"))
+
+    def test_config_get_returns_dashboard_description(self):
+        status, _, body = self.request("GET", "/_dashboard/config")
+        self.assertEqual((status, json.loads(body)["enabled"]), (200, ["echo", "boom", "broken"]))
+
+    def test_config_post_requires_json_and_local_host(self):
+        self.assertEqual(self.request("POST", "/_dashboard/config", body=b"{}", headers={"Content-Type": "text/plain"})[0], 415)
+        self.assertEqual(self.request("POST", "/_dashboard/config", host="evil.example.com", body=b"{}",
+                                      headers={"Content-Type": "application/json"})[0], 403)
+        self.assertEqual(self.dashboard.applied, [])
+
+    def test_config_post_passes_payload_and_returns_dashboard_status(self):
+        self.dashboard.reply = (422, {"errors": {"a": {"folder": "필수 항목이다"}}})
+        status, _, body = self.request("POST", "/_dashboard/config", body=b'{"tabs": {"a": {}}}',
+                                       headers={"Content-Type": "application/json"})
+        self.assertEqual((status, json.loads(body)), (422, {"errors": {"a": {"folder": "필수 항목이다"}}}))
+        self.assertEqual(self.dashboard.applied, [{"tabs": {"a": {}}}])
 
 
 if __name__ == "__main__":

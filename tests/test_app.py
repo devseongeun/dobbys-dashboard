@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -28,6 +30,7 @@ def recording_tab(tab_id, calls, fail=False):
 
 class DashboardTest(unittest.TestCase):
     def setUp(self):
+        self.enterContext(contextlib.redirect_stderr(io.StringIO()))
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
         self.folder = self.root / "docs"
         self.folder.mkdir()

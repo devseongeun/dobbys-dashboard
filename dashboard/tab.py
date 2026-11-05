@@ -7,8 +7,6 @@ from typing import Callable
 
 from dashboard.dispatch import Mount
 
-KINDS = ("dir", "dirs", "file", "text")
-
 
 def no_checks(settings: dict) -> dict[str, str]:
     return {}

@@ -1,3 +1,5 @@
+import contextlib
+import io
 import os
 import stat
 import tempfile
@@ -17,6 +19,7 @@ def make_tab(tab_id, fields, validate=None):
 
 class StoreTest(unittest.TestCase):
     def setUp(self):
+        self.enterContext(contextlib.redirect_stderr(io.StringIO()))
         self.dir = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.store = ConfigStore(self.dir / "sub" / "config.json", clock=lambda: 1700000000)
 

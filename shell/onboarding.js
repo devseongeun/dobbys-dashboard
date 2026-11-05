@@ -103,7 +103,7 @@ export function openOnboarding(root, config) {
         });
         const body = await res.json().catch(() => ({}));
         if (res.status === 422) {
-          config = { ...config, values: tabs };
+          config = { ...config, values: { ...config.values, ...tabs } };
           showFields(body.errors || {});
           return;
         }

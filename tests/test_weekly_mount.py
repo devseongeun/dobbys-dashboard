@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -48,6 +50,7 @@ class WeeklyMountTest(unittest.TestCase):
 
 class WeeklyEmptyFolderTest(unittest.TestCase):
     def test_folder_without_reports_still_mounts_and_explains(self):
+        self.enterContext(contextlib.redirect_stderr(io.StringIO()))
         empty = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
         port, _ = dashboard_with(self, TAB, {"folders": [str(empty)]})
         status, _, body = request(self, port, "GET", "/weekly/")

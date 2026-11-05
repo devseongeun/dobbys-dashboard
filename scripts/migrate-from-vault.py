@@ -3,6 +3,7 @@
 
 옮기는 것: 일정 조정 초안, WBS-Jira 수동 연결(자동 매칭과 다른 것만), 주간 보고 확인 상태,
 코멘트 우선순위·보류, Jira 자격증명(.jira_config.ini → 키체인). 설정(config.json)은 온보딩에서 입력한다.
+상태는 `--project`(온보딩의 프로젝트 이름) 아래에 쓴다.
 """
 from __future__ import annotations
 
@@ -33,7 +34,9 @@ def main() -> int:
     ap.add_argument("--owner", required=True)
     ap.add_argument("--sheet", default=DEFAULT_SHEET)
     ap.add_argument("--jira-ini", type=Path, required=True)
+    ap.add_argument("--project", required=True, help="온보딩에 적은 프로젝트 이름. 상태를 그 아래에 둔다")
     args = ap.parse_args()
+    state_root = STATE_ROOT / args.project
     work = args.vault / "projects" / "work"
     old_wbs = work / "TRB_400/90-assets/wbs-jira/wbs.json"
     old_report_path = work / "TRB_400/20-implementation-notes/scripts/spec_comment_report.py"
@@ -47,7 +50,7 @@ def main() -> int:
     drafts = HOME / "Library/Application Support/trb-wbs-jira/plan-drafts.json"
     if drafts.exists():
         draft_data = read_json(drafts)
-        write_json(STATE_ROOT / "wbs" / "plan-drafts.json", draft_data)
+        write_json(state_root / "wbs" / "plan-drafts.json", draft_data)
         print(f"[OK] 일정 조정 초안 {len(draft_data)}건")
 
     if jira_cache.is_file():
@@ -58,13 +61,13 @@ def main() -> int:
     reviewed = work / "weekly-report/weekly-report-viewer/reviewed.json"
     if reviewed.exists():
         reviewed_data = read_json(reviewed)
-        write_json(STATE_ROOT / "weekly" / "reviewed.json", reviewed_data)
+        write_json(state_root / "weekly" / "reviewed.json", reviewed_data)
         print(f"[OK] 주간 보고 확인 상태 {len(reviewed_data)}건")
 
     spec = importlib.util.spec_from_file_location("old_spec_comment_report", old_report_path)
     old_report = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(old_report)
-    overrides = OverrideStore(STATE_ROOT / "comments" / "overrides.json")
+    overrides = OverrideStore(state_root / "comments" / "overrides.json")
     for level, table in (("중", old_report.PRIORITY_MID), ("상", old_report.PRIORITY_HIGH)):  # 같은 ID 면 상이 이긴다
         for comment_id, reason in table.items():
             overrides.update(comment_id, {"level": level, "reason": reason}, None)
@@ -89,7 +92,7 @@ def _migrate_links(args: argparse.Namespace, old: dict, cache: dict) -> None:
     me = (cache.get("me") or {}).get("displayName")
     mine = [i for i in issues.values() if me and i.get("assignee") == me]
     auto = match_keys(list(tasks.values()), mine, {})
-    links = LinkStore(STATE_ROOT / "wbs" / "links.json")
+    links = LinkStore(state_root / "wbs" / "links.json")
     print("[..] WBS-Jira 연결: 자동 매칭과 다른 것만 수동 연결로 옮긴다. 아래 목록을 검토한다.")
     for task in old.get("tasks", []):
         key = task.get("jira")

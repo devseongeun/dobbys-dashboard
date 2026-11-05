@@ -147,6 +147,8 @@ async function boot() {
     openOnboarding(onboarding, config);
     return;
   }
+  document.getElementById("project").textContent = config.project;
+  document.title = `${config.project} · 도비의 대시보드`;
   items = config.tabs.filter((tab) => config.enabled.includes(tab.id));
   buildNav();
   markStatus();

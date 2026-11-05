@@ -79,17 +79,34 @@ def _field(field: Field, raw) -> tuple[object, str | None]:
     return path, None
 
 
+def _project(raw, tabs: dict[str, Tab]) -> tuple[str, str | None]:
+    """프로젝트 이름은 상태 폴더 이름으로도 쓴다. 경로 구분자·NUL·숨김 접두어·탭 id 와의 충돌을 막는다."""
+    name = str(raw if raw is not None else "").strip()
+    if not name:
+        return "", "프로젝트 이름을 적는다"
+    if any(ch in name for ch in "/\\\x00") or name.startswith(".") or name in (".", ".."):
+        return name, "폴더 이름으로 쓸 수 없는 글자(/ \\ 맨 앞 .)가 있다"
+    if len(name) > 64:
+        return name, "64자 이하로 적는다"
+    if name in tabs:
+        return name, "탭 id 와 같은 이름은 쓸 수 없다"
+    return name, None
+
+
 def normalize(tabs: dict[str, Tab], submitted) -> tuple[dict, dict]:
-    """온보딩 제출값 {"tabs": {id: {key: value}}} → (저장할 config, 오류). 오류가 있으면 config 는 {}."""
+    """온보딩 제출값 {"project": 이름, "tabs": {id: {key: value}}} → (저장할 config, 오류). 오류가 있으면 config 는 {}."""
     picked = submitted.get("tabs") if isinstance(submitted, dict) else None
     if not isinstance(picked, dict) or not picked:
         return {}, {"_": {"tabs": "탭을 하나 이상 고른다"}}
     errors: dict[str, dict[str, str]] = {}
+    project, error = _project(submitted.get("project"), tabs)
+    if error:
+        errors["_"] = {"project": error}
     clean: dict[str, dict] = {}
     for tab_id, values in picked.items():
         tab = tabs.get(tab_id)
         if tab is None:
-            errors["_"] = {"tabs": f"알 수 없는 탭이다: {tab_id}"}
+            errors["_"] = {**errors.get("_", {}), "tabs": f"알 수 없는 탭이다: {tab_id}"}
             continue
         values = values if isinstance(values, dict) else {}
         settings, field_errors = {}, {}
@@ -104,4 +121,4 @@ def normalize(tabs: dict[str, Tab], submitted) -> tuple[dict, dict]:
         clean[tab_id] = settings
     if errors:
         return {}, errors
-    return {"version": VERSION, "tabs": clean}, {}
+    return {"version": VERSION, "project": project, "tabs": clean}, {}

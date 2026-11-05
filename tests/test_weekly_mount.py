@@ -69,8 +69,8 @@ class WeeklyFolderChangeTest(unittest.TestCase):
         (b / "2026-10-26~ 2026-11-01-weekly-report.md").write_text(
             REPORT.format(date="2026-10-26", start="2026-10-19", end="2026-10-25", title="B전용보고서"), encoding="utf-8")
         dashboard = Dashboard((TAB,), ConfigStore(root / "config.json"), root / "state")
-        self.assertEqual(dashboard.apply({"tabs": {"weekly": {"folders": [str(a)]}}})[0], 200)
+        self.assertEqual(dashboard.apply({"project": "P", "tabs": {"weekly": {"folders": [str(a)]}}})[0], 200)
         port = serve_handler(self, make_dispatcher(dashboard, REPO_ROOT / "shell"))
         self.assertNotIn("B전용보고서", request(self, port, "GET", "/weekly/")[2].decode("utf-8"))
-        self.assertEqual(dashboard.apply({"tabs": {"weekly": {"folders": [str(a), str(b)]}}})[0], 200)
+        self.assertEqual(dashboard.apply({"project": "P", "tabs": {"weekly": {"folders": [str(a), str(b)]}}})[0], 200)
         self.assertIn("B전용보고서", request(self, port, "GET", "/weekly/")[2].decode("utf-8"))

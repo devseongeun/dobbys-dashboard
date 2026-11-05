@@ -7,7 +7,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from dashboard.config import ConfigStore, normalize
+from dashboard.config import ConfigStore
+from dashboard.config import normalize as normalize_config
 from dashboard.dispatch import Mount
 from dashboard.tab import Field, Tab
 
@@ -15,6 +16,13 @@ from dashboard.tab import Field, Tab
 def make_tab(tab_id, fields, validate=None):
     extra = {"validate": validate} if validate else {}
     return Tab(tab_id, tab_id, "•", tuple(fields), build=lambda settings, state: Mount(tab_id, None, "unused"), **extra)
+
+
+def normalize(tabs, submitted):
+    """탭 필드 검증 테스트는 프로젝트 이름을 신경 쓰지 않도록 기본값을 채운다."""
+    if isinstance(submitted, dict) and "project" not in submitted:
+        submitted = {"project": "P", **submitted}
+    return normalize_config(tabs, submitted)
 
 
 class StoreTest(unittest.TestCase):
@@ -127,4 +135,17 @@ class NormalizeTest(unittest.TestCase):
     def test_success_keeps_only_submitted_tabs(self):
         config, errors = normalize(self.tabs, {"tabs": {"m": {"folder": str(self.meetings), "extra": "무시"}}})
         self.assertEqual(errors, {})
-        self.assertEqual(config, {"version": 1, "tabs": {"m": {"folder": str(self.meetings)}}})
+        self.assertEqual(config, {"version": 1, "project": "P", "tabs": {"m": {"folder": str(self.meetings)}}})
+
+    def test_project_name_is_required_and_must_be_a_safe_folder_name(self):
+        ok = {"tabs": {"m": {"folder": str(self.meetings)}}}
+        self.assertEqual(normalize_config(self.tabs, ok)[1], {"_": {"project": "프로젝트 이름을 적는다"}})
+        self.assertEqual(normalize_config(self.tabs, {"project": "  ", **ok})[1], {"_": {"project": "프로젝트 이름을 적는다"}})
+        for bad in ("a/b", "a\\b", ".hidden", "..", "x" * 65, "m"):
+            self.assertIn("project", normalize_config(self.tabs, {"project": bad, **ok})[1].get("_", {}), bad)
+        config, errors = normalize_config(self.tabs, {"project": " TRB 4.0.0 ", **ok})
+        self.assertEqual((errors, config["project"]), ({}, "TRB 4.0.0"))
+
+    def test_project_error_is_reported_alongside_tab_errors(self):
+        _, errors = normalize_config(self.tabs, {"project": "", "tabs": {"m": {"folder": ""}, "nope": {}}})
+        self.assertEqual(errors, {"_": {"project": "프로젝트 이름을 적는다", "tabs": "알 수 없는 탭이다: nope"}, "m": {"folder": "필수 항목이다"}})

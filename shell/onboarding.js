@@ -65,6 +65,14 @@ export function openOnboarding(root, config) {
     const chosen = config.tabs.filter((tab) => selected.has(tab.id));
     const form = el("form", { novalidate: true });
     if (errors._?.tabs) form.append(el("p", { class: "error", text: errors._.tabs }));
+    const project = el("input", { name: "project", type: "text", autocomplete: "off", spellcheck: "false", placeholder: "예: TRB 4.0.0" });
+    project.value = config.project ?? "";
+    form.append(el("fieldset", {}, el("legend", { text: "프로젝트" }),
+      el("label", { class: "field" },
+        el("span", { text: "프로젝트 이름 ✱" }),
+        project,
+        el("span", { class: "hint", text: "대시보드는 한 번에 한 프로젝트만 본다. 수동 연결·일정 초안 같은 개인 상태는 이 이름 아래에 따로 저장되고, 이름을 바꾸면 빈 상태에서 시작한다(다시 돌아오면 복원)." }),
+        errors._?.project ? el("p", { class: "error", text: errors._.project }) : "")));
     for (const tab of chosen) {
       const set = el("fieldset", {}, el("legend", { text: `${tab.icon} ${tab.label}` }));
       if (!tab.fields.length) set.append(el("p", { class: "hint", text: "입력할 항목이 없다." }));
@@ -96,14 +104,15 @@ export function openOnboarding(root, config) {
         tabs[tab.id] = {};
         for (const field of tab.fields) tabs[tab.id][field.key] = form.elements[`${tab.id}.${field.key}`].value;
       }
+      const payload = { project: project.value, tabs };
       save.disabled = true;
       try {
         const res = await fetch("/_dashboard/config", {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tabs }),
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
         });
         const body = await res.json().catch(() => ({}));
         if (res.status === 422) {
-          config = { ...config, values: { ...config.values, ...tabs } };
+          config = { ...config, project: project.value, values: { ...config.values, ...tabs } };
           showFields(body.errors || {});
           return;
         }

@@ -59,11 +59,11 @@ def dashboard_with(test, tab, settings: dict) -> tuple[int, Path]:
     """tab 하나만 켠 대시보드를 띄운다. 설정 검증을 실제로 거친다."""
     root = Path(test.enterContext(tempfile.TemporaryDirectory()))
     dashboard = Dashboard((tab,), ConfigStore(root / "config.json"), root / "state")
-    status, body = dashboard.apply({"tabs": {tab.id: settings}})
+    status, body = dashboard.apply({"project": "P", "tabs": {tab.id: settings}})
     test.assertEqual(status, 200, body)
     mount = dashboard.mount(tab.id)
     test.assertIsNone(mount.error, mount.error)
-    return serve_handler(test, make_dispatcher(dashboard, REPO_ROOT / "shell")), root / "state" / tab.id
+    return serve_handler(test, make_dispatcher(dashboard, REPO_ROOT / "shell")), root / "state" / "P" / tab.id
 
 
 def raw_exchange(port: int, request: bytes, timeout: float = 3.0) -> bytes:

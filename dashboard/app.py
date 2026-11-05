@@ -1,4 +1,8 @@
-"""설정(config.json) → 켜진 탭 마운트. 설정을 저장하면 마운트 표를 통째로 바꾼다(재기동 불필요)."""
+"""설정(config.json) → 켜진 탭 마운트. 설정을 저장하면 마운트 표를 통째로 바꾼다(재기동 불필요).
+
+개인 상태는 `<state_root>/<프로젝트>/<탭 id>/` 에 둔다. 프로젝트를 바꾸면 빈 상태에서 시작하고, 돌아오면 그대로 복원된다.
+`project` 가 없는 옛 config 는 온보딩(값은 미리 채워짐)으로 보내고, 옛 `<state_root>/<탭 id>/` 는 처음 프로젝트 이름을 정할 때 그 아래로 옮긴다.
+"""
 from __future__ import annotations
 
 import sys
@@ -19,7 +23,20 @@ class Dashboard:
         self._state_root = Path(state_root)
         self._lock = threading.Lock()
         self.config = store.load()
-        self._mounts: dict[str, Mount] = self._build(self.config) if self.config else {}
+        self._mounts: dict[str, Mount] = self._build(self.config) if self.project else {}
+
+    @property
+    def project(self) -> str | None:
+        return self.config.get("project") if self.config else None
+
+    def _state_dir(self, tab_id: str) -> Path:
+        state_dir = self._state_root / self.project / tab_id
+        legacy = self._state_root / tab_id
+        if legacy.is_dir() and not state_dir.exists():
+            state_dir.parent.mkdir(parents=True, exist_ok=True)
+            legacy.rename(state_dir)
+        state_dir.mkdir(parents=True, exist_ok=True)
+        return state_dir
 
     def _build(self, config: dict) -> dict[str, Mount]:
         mounts = {}
@@ -27,9 +44,8 @@ class Dashboard:
             settings = config["tabs"].get(tab_id)
             if settings is None:
                 continue
-            state_dir = self._state_root / tab_id
             try:
-                state_dir.mkdir(parents=True, exist_ok=True)
+                state_dir = self._state_dir(tab_id)
                 mount = self._tabs[tab_id].build(settings, state_dir)
             except Exception as exc:  # 탭 하나가 실패해도 나머지는 뜬다.
                 mount = Mount(tab_id, None, f"{type(exc).__name__}: {exc}")
@@ -47,7 +63,8 @@ class Dashboard:
     def describe(self) -> dict:
         values = self.config["tabs"] if self.config else {}
         return {
-            "configured": self.config is not None,
+            "configured": self.project is not None,
+            "project": self.project or "",
             "tabs": [self._tabs[tab_id].describe() for tab_id in self._order],
             "enabled": [tab_id for tab_id in self._order if tab_id in values],
             "values": values,

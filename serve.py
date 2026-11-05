@@ -57,7 +57,7 @@ def main() -> int:
     except OSError as error:
         print(f"{PORT} 포트를 열지 못했다: {error}", file=sys.stderr)
         return 1
-    print(f"http://127.0.0.1:{servers[0].server_port}/  (업무 대시보드, Ctrl+C 로 종료)")
+    print(f"http://127.0.0.1:{servers[0].server_port}/  (도비의 대시보드, Ctrl+C 로 종료)")
     for server in servers[1:]:
         threading.Thread(target=server.serve_forever, daemon=True).start()
     try:

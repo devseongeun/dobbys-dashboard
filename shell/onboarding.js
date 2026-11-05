@@ -55,7 +55,7 @@ export function openOnboarding(root, config) {
     }
     actions.append(next);
     root.replaceChildren(
-      el("h1", { text: config.configured ? "설정" : "업무 대시보드 시작하기" }),
+      el("h1", { text: config.configured ? "설정" : "도비의 대시보드 시작하기" }),
       el("p", { class: "muted", text: "쓸 탭만 고른다. 다음 단계에서 고른 탭의 경로만 입력한다. 로그인이 필요한 탭(WBS·Jira, 기획서 코멘트 현황)은 탭 안에서 로그인한다." }),
       list, actions,
     );

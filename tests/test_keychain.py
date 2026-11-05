@@ -11,20 +11,33 @@ class FakeRun:
 
     def __call__(self, args, **kwargs):
         self.calls.append((args, kwargs))
-        code, out = self.results.pop(0)
-        return subprocess.CompletedProcess(args, code, out, "")
+        code, out, *err = self.results.pop(0)
+        return subprocess.CompletedProcess(args, code, out, err[0] if err else "")
 
 
 class KeychainTest(unittest.TestCase):
-    def test_set_sends_secret_twice_on_stdin_not_argv(self):
+    def test_set_sends_hex_value_in_one_interactive_line_not_argv(self):
         run = FakeRun((0, ""))
         Keychain(run=run).set("jira", {"token": "s3cret"})
         args, kwargs = run.calls[0]
+        self.assertEqual(args, ["security", "-i"])
         self.assertNotIn("s3cret", " ".join(args))
-        self.assertEqual(args[:2], ["security", "add-generic-password"])
-        self.assertIn("dobbys-dashboard.jira", args)
-        self.assertEqual(args[-1], "-w")
-        self.assertEqual(kwargs["input"], '{"token": "s3cret"}\n{"token": "s3cret"}\n')
+        hex_value = '{"token": "s3cret"}'.encode("utf-8").hex()
+        self.assertEqual(kwargs["input"], f"add-generic-password -U -s dobbys-dashboard.jira -a default -X {hex_value}\n")
+
+    def test_set_stderr_output_is_failure(self):
+        run = FakeRun((0, "", "security: SecKeychainItemCreateFromContent: returned 1"))
+        with self.assertRaises(KeychainError) as caught:
+            Keychain(run=run).set("jira", {"token": "s3cret"})
+        self.assertNotIn("s3cret", str(caught.exception))
+
+    def test_set_rejects_too_long_value_without_calling_security(self):
+        run = FakeRun()
+        with self.assertRaises(KeychainError) as caught:
+            Keychain(run=run).set("jira", {"token": "x" * 1900})
+        self.assertEqual(run.calls, [])
+        self.assertIn("너무 길다", str(caught.exception))
+        self.assertIn("dobbys-dashboard.jira", str(caught.exception))
 
     def test_every_call_detaches_from_controlling_terminal(self):
         run = FakeRun((0, ""), (0, '{"a": "b"}'), (0, ""))

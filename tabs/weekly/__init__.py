@@ -36,6 +36,8 @@ def _build(settings: dict, state_dir: Path) -> Mount:
 TAB = Tab(
     "weekly", "주간 보고", "📝",
     (Field("folders", "주간 보고 폴더", "dirs", required=True,
-           help="주간 보고 초안 md 가 쌓이는 폴더. 예전 보고 폴더가 따로 있으면 한 줄씩 더 적는다."),),
+           help="주간 보고 초안 md가 쌓이는 폴더. 예전 보고 폴더가 따로 있으면 한 줄씩 더 적으세요."),),
     build=_build,
+    question="주간 보고 초안을 챙기고 싶어요",
+    summary="주간 보고 폴더의 초안 md를 모아 봅니다.",
 )

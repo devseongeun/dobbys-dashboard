@@ -26,7 +26,7 @@ git clone https://github.com/devseongeun/dobbys-dashboard.git ~/workspace/dobbys
 cd ~/workspace/dobbys-dashboard && python3 serve.py
 ```
 
-그다음 `http://127.0.0.1:8787/`을 열면 온보딩이 뜬다. 프로젝트 이름을 적고 쓸 탭과 경로를 고른다.
+그다음 `http://127.0.0.1:8787/`을 열면 온보딩이 뜬다. 프로젝트 이름을 적은 뒤 "내 담당 기능 WBS가 궁금해요" 같은 질문에 하나씩 예·아니요로 답한다. 예라고 답한 탭만 켜지고, 그 탭의 경로·옵션은 같은 화면에서 바로 적는다. 마지막 확인 화면에서 저장한다. 나중에 ⚙ 설정을 열면 질문 없이 탭 켜기·끄기와 경로를 한 화면에서 고친다.
 
 ## 상주 실행
 
@@ -91,4 +91,6 @@ python3 -m unittest discover -s tests -t . -v
 bun test tests/js
 ```
 
-탭을 추가하려면 `tabs/<id>/__init__.py`에서 `TAB`을 내보내고, `tabs/__init__.py`의 `ALL_TABS`에 넣는다.
+최초 온보딩을 다시 보려면 `sh scripts/sandbox.sh`(기본 포트 8790, `PORT=…`로 변경)를 실행하고 `http://127.0.0.1:8790/`을 연다. 임시 `HOME`에서 빈 설정으로 뜨므로 실제 설정·상태는 그대로고, 끄면 임시 폴더를 지운다. 샌드박스 안에서는 `~`가 임시 폴더를 가리키니 경로는 절대 경로로 적는다. 키체인은 실제 것을 쓰므로 샌드박스 탭 안에서는 로그인하지 않는다.
+
+탭을 추가하려면 `tabs/<id>/__init__.py`에서 `TAB`을 내보내고, `tabs/__init__.py`의 `ALL_TABS`에 넣는다. 첫 온보딩에서 물을 불편 지점은 `Tab(question=…, summary=…)`에 적는다(비면 "탭을 쓸까요?"로 묻는다).

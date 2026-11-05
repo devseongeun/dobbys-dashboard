@@ -154,7 +154,7 @@ class MeetingsMountTest(unittest.TestCase):
     def test_folder_outside_vault_is_rejected(self):
         outside = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
         self.assertEqual(TAB.validate({"folder": str(outside)}),
-                         {"folder": "Obsidian Vault 안의 폴더를 지정한다(.obsidian 폴더를 찾지 못했다)"})
+                         {"folder": "Obsidian Vault 안의 폴더를 지정하세요(.obsidian 폴더가 없습니다)"})
 
     def test_vault_is_found_from_nested_folder(self):
         nested = self.vault / "70-meetings" / "a" / "b"

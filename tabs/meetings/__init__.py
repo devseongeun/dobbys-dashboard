@@ -6,7 +6,7 @@ from pathlib import Path
 from dashboard.dispatch import Mount
 from dashboard.tab import Field, Tab
 
-OUTSIDE_VAULT = "Obsidian Vault 안의 폴더를 지정한다(.obsidian 폴더를 찾지 못했다)"
+OUTSIDE_VAULT = "Obsidian Vault 안의 폴더를 지정하세요(.obsidian 폴더가 없습니다)"
 
 
 def find_vault(folder: Path) -> Path | None:
@@ -35,6 +35,8 @@ def _build(settings: dict, state_dir: Path) -> Mount:
 TAB = Tab(
     "meetings", "회의 자료", "📎",
     (Field("folder", "회의 폴더", "dir", required=True,
-           help="회의 Canvas를 둘 Vault 안 폴더(예: …/TRB_400/70-meetings). Canvas의 파일 카드는 이 Vault 기준으로 연다."),),
+           help="회의 Canvas를 둘 Vault 안 폴더(예: …/TRB_400/70-meetings). Canvas 파일 카드는 이 Vault 기준으로 엽니다."),),
     build=_build, validate=_validate,
+    question="회의 때 볼 자료를 한곳에 모아 두고 싶어요",
+    summary="Vault 파일과 웹 링크를 회의별 블록에 담아 둡니다.",
 )

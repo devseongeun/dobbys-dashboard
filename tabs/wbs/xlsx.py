@@ -90,7 +90,7 @@ class Workbook:
         try:
             self._zip = zipfile.ZipFile(path)
         except BROKEN as exc:
-            raise XlsxError("workbook", "xlsx 파일이 아니다") from exc
+            raise XlsxError("workbook", "xlsx 파일이 아닙니다") from exc
         try:
             self._load()
         except BaseException:
@@ -102,7 +102,7 @@ class Workbook:
             book = ET.fromstring(self._zip.read("xl/workbook.xml"))
             rels = ET.fromstring(self._zip.read("xl/_rels/workbook.xml.rels"))
         except BROKEN as exc:
-            raise XlsxError("workbook", "xlsx 파일이 아니다") from exc
+            raise XlsxError("workbook", "xlsx 파일이 아닙니다") from exc
         targets = {r.get("Id"): r.get("Target") for r in rels.iter(f"{PKG}Relationship")}
         self._sheets = {}
         for sheet in book.iter(f"{MAIN}sheet"):
@@ -113,14 +113,14 @@ class Workbook:
         except KeyError:
             data = None
         except BROKEN as exc:
-            raise XlsxError("workbook", "xlsx 파일이 아니다") from exc
+            raise XlsxError("workbook", "xlsx 파일이 아닙니다") from exc
         if data is None:
             self._strings = []
             return
         try:
             strings = ET.fromstring(data)
         except BROKEN as exc:
-            raise XlsxError("workbook", "xlsx 파일이 아니다") from exc
+            raise XlsxError("workbook", "xlsx 파일이 아닙니다") from exc
         self._strings = ["".join(t.text or "" for t in si.iter(f"{MAIN}t")) for si in strings.iter(f"{MAIN}si")]
 
     def close(self) -> None:
@@ -138,15 +138,15 @@ class Workbook:
         try:
             return self._strings[int(node.text)]
         except (IndexError, ValueError) as exc:
-            raise XlsxError("workbook", "xlsx 파일이 아니다") from exc
+            raise XlsxError("workbook", "xlsx 파일이 아닙니다") from exc
 
     def rows(self, name: str) -> list[dict[str, str]]:
         if name not in self._sheets:
-            raise XlsxError("sheet", f"'{name}' 시트가 없다. 있는 시트: {', '.join(self._sheets)}")
+            raise XlsxError("sheet", f"'{name}' 시트가 없습니다. 있는 시트: {', '.join(self._sheets)}")
         try:
             root = ET.fromstring(self._zip.read(self._sheets[name]))
         except BROKEN as exc:
-            raise XlsxError("workbook", "xlsx 파일이 아니다") from exc
+            raise XlsxError("workbook", "xlsx 파일이 아닙니다") from exc
         out = []
         for row in root.iter(f"{MAIN}row"):
             cells = {}
@@ -176,12 +176,12 @@ def read_wbs(path: Path, sheet: str, owner: str) -> dict:
         rows = book.rows(sheet)
         head = next((i for i, row in enumerate(rows) if HEADERS["id"] in {label(v) for v in row.values()}), None)
         if head is None:
-            raise XlsxError("sheet", f"'{sheet}' 시트에서 '{HEADERS['id']}' 머리글을 찾지 못했다")
+            raise XlsxError("sheet", f"'{sheet}' 시트에 '{HEADERS['id']}' 머리글이 없습니다")
         by_label = {label(v): c for c, v in rows[head].items()}
         cols = {key: by_label.get(text) for key, text in HEADERS.items()}
         missing = [HEADERS[key] for key in REQUIRED if not cols[key]]
         if missing:
-            raise XlsxError("sheet", "머리글이 없다: " + ", ".join(missing))
+            raise XlsxError("sheet", "머리글이 없습니다: " + ", ".join(missing))
         sub = {label(v): c for c, v in rows[head + 1].items()} if head + 1 < len(rows) else {}
         cols["weight"], cols["stage"] = sub.get("가중치"), sub.get("수행단계")
         cols["pri"] = col_name(col_index(cols["weight"]) - 1) if cols["weight"] and col_index(cols["weight"]) > 1 else None
@@ -202,7 +202,7 @@ def read_wbs(path: Path, sheet: str, owner: str) -> dict:
                 "md": _number(get("md")), "q": get("q"), "detail": get("detail"), "jira": None,
             })
         if not tasks:
-            raise XlsxError("owner", f"담당자 '{owner}' 행이 없다")
+            raise XlsxError("owner", f"담당자 '{owner}' 행이 없습니다")
         return {"tasks": tasks, "holidays": book.holidays()}
     finally:
         book.close()

@@ -24,7 +24,9 @@ def _build(settings: dict, state_dir: Path) -> Mount:
 TAB = Tab(
     "assets", "의사결정 현황", "🗂️",
     (Field("folder", "의사결정 문서 폴더", "dir", required=True,
-           help="회신을 기다리는 문의·확인 요청 HTML과 참고 문서(설명·분석·설계·점검표)가 있는 폴더. "
-                "기능 구분·작성일은 각 HTML <head>의 <meta name=\"feature\">·<meta name=\"created\">에서 읽는다. 예: …/90-assets"),),
+           help="회신 대기 문의·확인 요청 HTML과 참고 문서(설명·분석·설계·점검표)가 있는 폴더. "
+                "기능 구분·작성일은 각 HTML <head>의 <meta name=\"feature\">·<meta name=\"created\">에서 읽습니다. 예: …/90-assets"),),
     build=_build,
+    question="의사결정 기록과 현황을 파악하고 싶어요",
+    summary="문의·확인 요청 문서마다 회신 대상과 미결·완료 건수를 모아 봅니다.",
 )

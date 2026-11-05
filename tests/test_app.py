@@ -55,7 +55,7 @@ class DashboardTest(unittest.TestCase):
         dashboard = self.make()
         self.assertEqual(self.submit(dashboard, a={"folder": str(self.folder)})[0], 200)
         status, body = self.submit(dashboard, b={"folder": ""})
-        self.assertEqual((status, body), (422, {"errors": {"b": {"folder": "필수 항목이다"}}}))
+        self.assertEqual((status, body), (422, {"errors": {"b": {"folder": "필수 항목입니다"}}}))
         self.assertIsNotNone(dashboard.mount("a"))
         self.assertEqual(json.loads(self.store.path.read_text(encoding="utf-8"))["tabs"], {"a": {"folder": str(self.folder)}})
 

@@ -23,6 +23,7 @@ SHELL_FILES = {
     "/shell.js": "shell.js",
     "/route.js": "route.js",
     "/onboarding.js": "onboarding.js",
+    "/onboarding_flow.js": "onboarding_flow.js",
 }
 MIME = {
     ".html": "text/html; charset=utf-8",

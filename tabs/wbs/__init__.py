@@ -22,9 +22,9 @@ def _validate(settings: dict) -> dict[str, str]:
 
     errors = {}
     if not DOMAIN_RE.match(clean_domain(settings["jira_domain"])):
-        errors["jira_domain"] = "도메인 형식이 아니다 (예: example.atlassian.net)"
+        errors["jira_domain"] = "도메인 형식이 아닙니다(예: example.atlassian.net)"
     if not PROJECT_RE.match(settings["jira_project"]):
-        errors["jira_project"] = "프로젝트 키는 영문 대문자로 시작한다 (예: PROJ)"
+        errors["jira_project"] = "프로젝트 키는 영문 대문자로 시작합니다(예: PROJ)"
     try:
         read_wbs(Path(settings["workbook"]), settings["sheet"], settings["owner"])
     except XlsxError as exc:
@@ -54,11 +54,13 @@ TAB = Tab(
     "wbs", "WBS·Jira", "📅",
     (
         Field("workbook", "WBS 엑셀 파일", "file", required=True, help="팀 WBS .xlsx 파일."),
-        Field("owner", "담당자 이름", "text", required=True, help="엑셀 '담당자' 열에 적힌 내 이름. '이름 외 N명' 행도 포함한다."),
+        Field("owner", "담당자 이름", "text", required=True, help="엑셀 '담당자' 열의 내 이름. '이름 외 N명' 행도 포함합니다."),
         Field("sheet", "시트 이름", "text", default=DEFAULT_SHEET),
         Field("jira_domain", "Jira 도메인", "text", required=True,
-              help="예: yourcompany.atlassian.net. 로그인은 탭 안에서 한다."),
+              help="예: yourcompany.atlassian.net. 탭 안에서 로그인합니다."),
         Field("jira_project", "Jira 프로젝트 키", "text", required=True, help="예: PROJ"),
     ),
     build=_build, validate=_validate,
+    question="내 담당 기능 WBS가 궁금해요",
+    summary="WBS 엑셀에서 내 담당 행을 모아 일정을 보고, Jira 이슈와 이어 진행 상황을 함께 봅니다.",
 )

@@ -30,10 +30,13 @@ class Tab:
     fields: tuple[Field, ...]
     build: Callable[[dict, Path], Mount]
     validate: Callable[[dict], dict[str, str]] = no_checks
+    question: str = ""  # 첫 온보딩에서 묻는 불편 지점. 비면 셸이 "{label} 탭을 쓸까요?"로 묻는다.
+    summary: str = ""  # 질문 아래 한 줄 설명: 예를 고르면 무엇을 보게 되는지.
 
     def describe(self) -> dict:
         return {
             "id": self.id, "label": self.label, "icon": self.icon, "src": f"/{self.id}/",
+            "question": self.question, "summary": self.summary,
             "fields": [
                 {"key": f.key, "label": f.label, "kind": f.kind, "required": f.required, "default": f.default, "help": f.help}
                 for f in self.fields

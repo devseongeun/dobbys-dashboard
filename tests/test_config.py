@@ -78,23 +78,23 @@ class NormalizeTest(unittest.TestCase):
         }
 
     def test_requires_at_least_one_tab(self):
-        self.assertEqual(normalize(self.tabs, {"tabs": {}}), ({}, {"_": {"tabs": "탭을 하나 이상 고른다"}}))
-        self.assertEqual(normalize(self.tabs, None)[1], {"_": {"tabs": "탭을 하나 이상 고른다"}})
+        self.assertEqual(normalize(self.tabs, {"tabs": {}}), ({}, {"_": {"tabs": "탭을 하나 이상 고르세요"}}))
+        self.assertEqual(normalize(self.tabs, None)[1], {"_": {"tabs": "탭을 하나 이상 고르세요"}})
 
     def test_unknown_tab_is_rejected(self):
         _, errors = normalize(self.tabs, {"tabs": {"nope": {}}})
-        self.assertEqual(errors, {"_": {"tabs": "알 수 없는 탭이다: nope"}})
+        self.assertEqual(errors, {"_": {"tabs": "알 수 없는 탭입니다: nope"}})
 
     def test_required_and_missing_paths(self):
-        self.assertEqual(normalize(self.tabs, {"tabs": {"m": {"folder": " "}}})[1], {"m": {"folder": "필수 항목이다"}})
+        self.assertEqual(normalize(self.tabs, {"tabs": {"m": {"folder": " "}}})[1], {"m": {"folder": "필수 항목입니다"}})
         self.assertEqual(normalize(self.tabs, {"tabs": {"m": {"folder": str(self.root / "없음")}}})[1],
-                         {"m": {"folder": "폴더가 없다"}})
+                         {"m": {"folder": "폴더가 없습니다"}})
         self.assertEqual(normalize(self.tabs, {"tabs": {"w": {"book": str(self.meetings)}}})[1],
-                         {"w": {"book": "파일이 없다"}})
+                         {"w": {"book": "파일이 없습니다"}})
 
     def test_nul_in_path_is_field_error(self):
         self.assertEqual(normalize(self.tabs, {"tabs": {"m": {"folder": "/tmp/a\x00b"}}})[1],
-                         {"m": {"folder": "경로 형식이 아니다"}})
+                         {"m": {"folder": "경로 형식이 아닙니다"}})
 
     def test_paths_with_spaces_korean_and_tilde_are_normalized(self):
         with mock.patch.dict(os.environ, {"HOME": str(self.root)}):
@@ -115,9 +115,9 @@ class NormalizeTest(unittest.TestCase):
         self.assertEqual((errors, config["tabs"]["k"]["folders"]), ({}, [str(self.meetings), str(other)]))
         config, errors = normalize(self.tabs, {"tabs": {"k": {"folders": [str(other)]}}})
         self.assertEqual(config["tabs"]["k"]["folders"], [str(other)])
-        self.assertEqual(normalize(self.tabs, {"tabs": {"k": {"folders": "\n"}}})[1], {"k": {"folders": "폴더를 하나 이상 입력한다"}})
+        self.assertEqual(normalize(self.tabs, {"tabs": {"k": {"folders": "\n"}}})[1], {"k": {"folders": "폴더를 하나 이상 입력하세요"}})
         self.assertEqual(normalize(self.tabs, {"tabs": {"k": {"folders": str(self.root / "x")}}})[1],
-                         {"k": {"folders": f"폴더가 없다: {self.root / 'x'}"}})
+                         {"k": {"folders": f"폴더가 없습니다: {self.root / 'x'}"}})
 
     def test_tab_validate_runs_only_after_fields_pass(self):
         calls = []
@@ -127,7 +127,7 @@ class NormalizeTest(unittest.TestCase):
             return {"folder": "Vault 밖이다"}
 
         tabs = {"m": make_tab("m", [Field("folder", "폴더", "dir", required=True)], validate)}
-        self.assertEqual(normalize(tabs, {"tabs": {"m": {"folder": ""}}})[1], {"m": {"folder": "필수 항목이다"}})
+        self.assertEqual(normalize(tabs, {"tabs": {"m": {"folder": ""}}})[1], {"m": {"folder": "필수 항목입니다"}})
         self.assertEqual(calls, [])
         self.assertEqual(normalize(tabs, {"tabs": {"m": {"folder": str(self.meetings)}}})[1], {"m": {"folder": "Vault 밖이다"}})
         self.assertEqual(calls, [{"folder": str(self.meetings)}])
@@ -139,8 +139,8 @@ class NormalizeTest(unittest.TestCase):
 
     def test_project_name_is_required_and_must_be_a_safe_folder_name(self):
         ok = {"tabs": {"m": {"folder": str(self.meetings)}}}
-        self.assertEqual(normalize_config(self.tabs, ok)[1], {"_": {"project": "프로젝트 이름을 적는다"}})
-        self.assertEqual(normalize_config(self.tabs, {"project": "  ", **ok})[1], {"_": {"project": "프로젝트 이름을 적는다"}})
+        self.assertEqual(normalize_config(self.tabs, ok)[1], {"_": {"project": "프로젝트 이름을 입력하세요"}})
+        self.assertEqual(normalize_config(self.tabs, {"project": "  ", **ok})[1], {"_": {"project": "프로젝트 이름을 입력하세요"}})
         for bad in ("a/b", "a\\b", ".hidden", "..", "x" * 65, "m"):
             self.assertIn("project", normalize_config(self.tabs, {"project": bad, **ok})[1].get("_", {}), bad)
         config, errors = normalize_config(self.tabs, {"project": " TRB 4.0.0 ", **ok})
@@ -148,4 +148,4 @@ class NormalizeTest(unittest.TestCase):
 
     def test_project_error_is_reported_alongside_tab_errors(self):
         _, errors = normalize_config(self.tabs, {"project": "", "tabs": {"m": {"folder": ""}, "nope": {}}})
-        self.assertEqual(errors, {"_": {"project": "프로젝트 이름을 적는다", "tabs": "알 수 없는 탭이다: nope"}, "m": {"folder": "필수 항목이다"}})
+        self.assertEqual(errors, {"_": {"project": "프로젝트 이름을 입력하세요", "tabs": "알 수 없는 탭입니다: nope"}, "m": {"folder": "필수 항목입니다"}})

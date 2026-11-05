@@ -9,7 +9,7 @@ from dashboard.tab import Field, Tab
 
 def _validate(settings: dict) -> dict[str, str]:
     if not settings["base"].startswith(("http://", "https://")):
-        return {"base": "http:// 또는 https:// 로 시작하는 주소를 입력한다"}
+        return {"base": "http:// 또는 https://로 시작하는 주소를 입력하세요"}
     return {}
 
 
@@ -30,8 +30,10 @@ TAB = Tab(
     "comments", "기획서 코멘트 현황", "💬",
     (
         Field("base", "기획서(TROMBONE) 주소", "text", required=True,
-              help="예: http://기획서-서버:8088. 로그인은 탭 안에서 한다. 사내망(VPN)에서만 열린다."),
-        Field("export_dir", "체크리스트 저장 폴더", "dir", help="비우면 MD 내보내기를 쓰지 않는다."),
+              help="예: http://기획서-서버:8088. 탭 안에서 로그인합니다. 사내망(VPN)에서만 열립니다."),
+        Field("export_dir", "체크리스트 저장 폴더", "dir", help="비우면 MD로 내보내지 않습니다."),
     ),
     build=_build, validate=_validate,
+    question="웹 기획서에 답글이 달렸는지 궁금해요",
+    summary="기획서(TROMBONE)에 남긴 코멘트의 답글 현황을 봅니다. 사내망(VPN)이 필요합니다.",
 )

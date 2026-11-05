@@ -42,3 +42,19 @@ main iframe[hidden] { display: block; visibility: hidden; pointer-events: none; 
 .onboarding button { padding: 7px 14px; border: 1px solid var(--line); border-radius: 7px; background: none; color: inherit; cursor: pointer; font: inherit; }
 .onboarding button.primary { background: var(--acc); border-color: var(--acc); color: #fff; }
 .onboarding button:disabled { opacity: .5; cursor: default; }
+.onboarding .progress { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+.onboarding .dots { display: flex; gap: 6px; }
+.onboarding .dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--muted); }
+.onboarding .dot.answered { background: var(--acc); border-color: var(--acc); }
+.onboarding .dot.current { outline: 2px solid var(--acc); outline-offset: 2px; }
+.onboarding .dot.error { background: var(--warn); border-color: var(--warn); }
+.onboarding .choices { display: flex; gap: 8px; margin: 20px 0; }
+.onboarding button.choice { min-width: 110px; padding: 10px 18px; font-size: 15px; }
+.onboarding button.choice[aria-pressed="true"] { border-color: var(--acc); color: var(--acc); font-weight: 600; }
+.onboarding button.choice[aria-pressed="true"]::before { content: "✓ "; }
+.onboarding .summary button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px; border-radius: 10px; text-align: left; }
+.onboarding .summary button:hover { background: var(--hover); }
+.onboarding .summary .label { flex: 1; }
+.onboarding .summary .state { color: var(--acc); font-weight: 600; }
+.onboarding .summary button.off { color: var(--muted); }
+.onboarding .summary button.off .state { color: var(--muted); font-weight: 400; }

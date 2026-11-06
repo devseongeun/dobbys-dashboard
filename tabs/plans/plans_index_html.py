@@ -15,7 +15,7 @@ def html_name(folder: Path) -> str:
     return f"00_{folder.name}_목록.html"
 
 
-TABS = (("doing", "진행 중"), ("todo", "할 일"), ("done", "완료"), ("ref", "참고"))
+TABS = (("todo", "할 일"), ("doing", "진행 중"), ("done", "완료"), ("ref", "참고"))
 
 EXTRA_STYLE = """.pl-t th:nth-child(2){width:72px}.pl-t th:nth-child(3){width:180px}.pl-t th:nth-child(4){width:96px}.pl-t th:nth-child(5),.pl-t th:nth-child(6){width:92px}
 .badge{display:inline-block;padding:0 8px;border-radius:99px;font-size:11px;line-height:19px;background:#232833;color:var(--muted);white-space:nowrap}
@@ -95,8 +95,8 @@ def render_html(sections: dict, folder: Path) -> str:
     plans = [p for items in sections.values() for p in items]
     mismatch = sum(p["mismatch"] for p in plans)
     stats = "".join([
-        stat("진행 중", f"{len(doing)}건", average),
         stat("할 일", f'{len(sections["todo"])}건', "착수 전"),
+        stat("진행 중", f"{len(doing)}건", average),
         stat("완료", f'{len(sections["done"])}건', f'참고 {len(sections["ref"])}건 별도'),
         stat("체크 어긋남", f"{mismatch}건", "완료인데 [ ] 남음"),
         stat("동기화", "—", "정적 파일", ' id="syncstat"'),
@@ -112,11 +112,11 @@ def render_html(sections: dict, folder: Path) -> str:
     panels = "".join(panel(key, label, sections[key]) for key, label in TABS)
     return fill(PAGE, {
         "TITLE": f"구현 진행 현황 · {folder.name}",
-        "SEARCH": "전체 검색 (진행 중·할 일·완료·참고)",
+        "SEARCH": "전체 검색 (할 일·진행 중·완료·참고)",
         "API": "api/plans",
         "SHELL": "plans",
         "SERVE": SERVE_URL,
-        "NORES": "진행 중·할 일·완료·참고 어디에도 맞는 계획이 없다.",
+        "NORES": "할 일·진행 중·완료·참고 어디에도 맞는 계획이 없다.",
         "SRC": f"자동 생성 파일이다. 원본은 <code>{esc(folder.name)}/*.md</code>의 frontmatter(<code>status</code>·<code>progress</code>·<code>feature</code>)와 체크박스이고, 대시보드 화면의 ⟳ 새로고침으로 다시 만든다. 계획을 누르면 md 뷰어가 열린다(서버에서 열었을 때).",
         "STYLE": STYLE + EXTRA_STYLE, "SCRIPT": SCRIPT,
         "STATS": stats, "TABS": tabs, "CHIPS": chips, "PANELS": panels,

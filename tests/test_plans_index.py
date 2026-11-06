@@ -107,6 +107,17 @@ class SyncTest(unittest.TestCase):
         plans_index.sync(self.dir)
         self.assertEqual(plans_index.sync(self.dir, check=True)["stale"], [])
 
+    def test_sections_order_by_date_desc_and_groups_by_newest(self):
+        # B 묶음이 A 묶음보다 먼저 시작됐지만 최신 작성일(11-05)은 A 라서 A 묶음이 앞이다. 미분류는 맨 뒤다.
+        write(self.dir, "2026-11-03 b-old.md", "---\nstatus: 완료\nfeature: B\nupdated: 2026-11-09\n---\n")
+        write(self.dir, "2026-11-04 a-old.md", "---\nstatus: 완료\nfeature: A\n---\n")
+        write(self.dir, "2026-11-05 a-new.md", "---\nstatus: 완료\nfeature: A\n---\n")
+        write(self.dir, "2026-11-04 b-new.md", "---\nstatus: 완료\nfeature: B\n---\n")
+        write(self.dir, "2026-11-06 none.md", "---\nstatus: 완료\n---\n")
+        sections = plans_index.by_state([plans_index.read(p, []) for p in plans_index.plans_in(self.dir)])
+        self.assertEqual([p["file"] for p in sections["done"]],
+                         ["2026-11-05 a-new.md", "2026-11-04 a-old.md", "2026-11-04 b-new.md", "2026-11-03 b-old.md", "2026-11-06 none.md"])
+
 
 class ResolvePlanTest(unittest.TestCase):
     def setUp(self):

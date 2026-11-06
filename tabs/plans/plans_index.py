@@ -10,6 +10,7 @@
 - 작성일은 파일명 앞 `YYYY-MM-DD`, 최종 갱신은 frontmatter `updated` → `created` → 작성일.
   파일 수정 시각은 Vault 동기화로 한꺼번에 바뀌므로 쓰지 않는다.
 - 기능 구분은 frontmatter `feature`(한 줄: `feature: A, B` 또는 `feature: [A, B]`)에서 읽는다. 없으면 `미분류`.
+- 정렬은 작성일 내림차순이다. 기능 구분 묶음은 묶음 안 가장 최신 작성일 순, 묶음 안은 작성일 → 최종 갱신 순. 미분류는 맨 뒤다.
 
 사용: 대시보드가 `sync(folder)`를 부른다. `check=True`면 파일을 쓰지 않고 갱신 필요 여부만 돌려준다.
 """
@@ -121,15 +122,18 @@ def plans_in(folder: Path) -> list:
 
 
 def grouped(items: list) -> list:
-    # 정렬이 안정적이므로 같은 기능 구분 안에서는 최종 갱신 순서가 유지된다. 미분류는 맨 뒤다.
-    return sorted(items, key=lambda p: (p["features"] == [UNMAPPED], p["features"]))
+    # items 는 작성일 내림차순이다. 묶음은 첫 등장(=묶음 안 최신 작성일) 순이고, 안정 정렬이라 묶음 안 순서는 유지된다. 미분류는 맨 뒤다.
+    first = {}
+    for i, p in enumerate(items):
+        first.setdefault(tuple(p["features"]), i)
+    return sorted(items, key=lambda p: (p["features"] == [UNMAPPED], first[tuple(p["features"])]))
 
 
 def by_state(plans: list) -> dict:
     out = {}
     for key in STATES:
         items = [p for p in plans if p["state"] == key]
-        items.sort(key=lambda p: (p["updated"], p["date"]), reverse=True)
+        items.sort(key=lambda p: (p["date"], p["updated"]), reverse=True)
         out[key] = grouped(items)
     return out
 
@@ -158,7 +162,7 @@ def render(sections: dict, folder: Path) -> str:
         "| 기능 구분 | 계획 | 진행률 | 체크 | 최종 갱신 | 작성일 |",
         "| --- | --- | --- | --- | --- | --- |",
     ]
-    for key in ("doing", "todo", "done"):
+    for key in ("todo", "doing", "done"):
         items = sections[key]
         lines += [f"## {STATES[key]} ({len(items)})", "", *header]
         lines += [

@@ -23,6 +23,7 @@ SHELL_FILES = {
     "/shell.js": "shell.js",
     "/route.js": "route.js",
     "/update_flow.js": "update_flow.js",
+    "/order.js": "order.js",
     "/onboarding.js": "onboarding.js",
     "/onboarding_flow.js": "onboarding_flow.js",
 }
@@ -38,6 +39,7 @@ COPIED = (
 )
 CONFIG_API = "/_dashboard/config"
 UPDATE_API = "/_dashboard/update"
+ORDER_API = "/_dashboard/order"
 MAX_CONFIG_BYTES = 64 * 1024
 
 
@@ -57,7 +59,8 @@ def host_allowed(raw: str) -> bool:
 
 
 def make_dispatcher(dashboard, shell_root: Path, updater=None):
-    """dashboard: mount(id) -> Mount|None, status() -> list, describe() -> dict, apply(payload) -> (status, body).
+    """dashboard: mount(id) -> Mount|None, status() -> list, describe() -> dict, apply(payload) -> (status, body),
+    reorder(payload) -> (status, body).
     updater: check(refresh) -> dict, apply() -> (status, body). None 이면 업데이트 API 는 404."""
     shell_root = shell_root.resolve()
 
@@ -139,8 +142,8 @@ def make_dispatcher(dashboard, shell_root: Path, updater=None):
             self.close_connection = inner.close_connection or inner.protocol_version != "HTTP/1.1"
 
         def _shell(self, path: str):
-            if path == CONFIG_API and self.command == "POST":
-                self._save_config()
+            if path in (CONFIG_API, ORDER_API) and self.command == "POST":
+                self._post_json(dashboard.apply if path == CONFIG_API else dashboard.reorder)
                 return
             if path == UPDATE_API and updater is not None:
                 if self.command == "POST":
@@ -168,7 +171,8 @@ def make_dispatcher(dashboard, shell_root: Path, updater=None):
                 return
             self._send(200, target.read_bytes(), MIME[target.suffix])
 
-        def _save_config(self):
+        def _post_json(self, handle):
+            """작은 JSON 본문을 읽어 handle(payload) -> (status, body) 로 넘긴다."""
             if not (self.headers.get("Content-Type") or "").startswith("application/json"):
                 self._json(415, {"error": "application/json 만 받는다"})
                 return
@@ -184,7 +188,7 @@ def make_dispatcher(dashboard, shell_root: Path, updater=None):
             except ValueError:
                 self._json(400, {"error": "JSON 이 아니다"})
                 return
-            status, body = dashboard.apply(payload)
+            status, body = handle(payload)
             self._json(status, body)
 
         do_GET = do_HEAD = do_POST = do_PUT = do_DELETE = do_PATCH = do_OPTIONS = _dispatch

@@ -73,6 +73,24 @@ class DashboardTest(unittest.TestCase):
         self.assertIsNone(dashboard.mount("a"))
         self.assertIsNotNone(dashboard.mount("b"))
 
+    def test_reorder_persists_and_survives_resubmission(self):
+        dashboard = self.make()
+        self.submit(dashboard, a={"folder": str(self.folder)}, b={"folder": str(self.folder)}, bad={"folder": str(self.folder)})
+        status, body = dashboard.reorder({"order": ["bad", "b", "nope", "b"]})
+        self.assertEqual((status, body["enabled"]), (200, ["bad", "b", "a"]))  # 모르는 id·중복은 버리고 빠진 탭은 뒤에
+        self.assertEqual(len(self.calls), 3)  # 마운트를 다시 만들지 않는다
+        self.assertEqual(self.make().describe()["enabled"], ["bad", "b", "a"])  # 디스크에 남는다
+        status, body = self.submit(dashboard, a={"folder": str(self.folder)}, b={"folder": str(self.folder)})
+        self.assertEqual((status, body["enabled"]), (200, ["b", "a"]))  # 끈 탭만 빠지고 순서는 유지
+
+    def test_reorder_rejects_bad_payload_and_unconfigured(self):
+        dashboard = self.make()
+        self.assertEqual(dashboard.reorder({"order": ["a"]})[0], 409)
+        self.submit(dashboard, a={"folder": str(self.folder)})
+        self.assertEqual(dashboard.reorder({"order": "a"})[0], 400)
+        self.assertEqual(dashboard.reorder(None)[0], 400)
+        self.assertEqual(dashboard.describe()["enabled"], ["a"])
+
     def test_build_failure_marks_only_that_tab(self):
         dashboard = self.make()
         self.submit(dashboard, a={"folder": str(self.folder)}, bad={"folder": str(self.folder)})

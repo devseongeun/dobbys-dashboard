@@ -54,6 +54,10 @@ class StubDashboard:
         self.applied.append(payload)
         return self.reply
 
+    def reorder(self, payload):
+        self.applied.append(("order", payload))
+        return 200, {"enabled": payload.get("order") if isinstance(payload, dict) else []}
+
 
 class StubUpdater:
     def __init__(self):
@@ -176,6 +180,14 @@ class DispatchTest(unittest.TestCase):
                                        headers={"Content-Type": "application/json"})
         self.assertEqual((status, json.loads(body)), (422, {"errors": {"a": {"folder": "필수 항목이다"}}}))
         self.assertEqual(self.dashboard.applied, [{"tabs": {"a": {}}}])
+
+    def test_order_post_passes_payload(self):
+        status, _, body = self.request("POST", "/_dashboard/order", body=b'{"order": ["boom", "echo"]}',
+                                       headers={"Content-Type": "application/json"})
+        self.assertEqual((status, json.loads(body)), (200, {"enabled": ["boom", "echo"]}))
+        self.assertEqual(self.dashboard.applied, [("order", {"order": ["boom", "echo"]})])
+        self.assertEqual(self.request("POST", "/_dashboard/order", body=b"{}", headers={"Content-Type": "text/plain"})[0], 415)
+        self.assertEqual(self.request("GET", "/_dashboard/order")[0], 404)
 
     def test_update_get_passes_refresh_flag_and_rejects_foreign_host(self):
         status, _, body = self.request("GET", "/_dashboard/update")

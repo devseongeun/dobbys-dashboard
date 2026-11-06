@@ -1,6 +1,7 @@
 import { openOnboarding } from "./onboarding.js";
 import { frameUrl, parseShellHash, pickInitial, toShellHash } from "./route.js";
 import { CHECK_INTERVAL_MS, RESTART_POLL_MS, RESTART_TIMEOUT_MS, confirmMessage, restarted, updateLink, versionLine } from "./update_flow.js";
+import { dropAfter, moveItem, sameOrder } from "./order.js";
 
 const LAST_KEY = "dobbys-dashboard:last";
 const COLLAPSED_KEY = "dobbys-dashboard:collapsed";
@@ -87,6 +88,7 @@ function buildNav() {
     link.href = "#" + item.id;
     link.dataset.id = item.id;
     link.title = item.label;
+    link.draggable = true;
     const icon = document.createElement("span");
     icon.className = "icon";
     icon.setAttribute("aria-hidden", "true");
@@ -102,6 +104,63 @@ function buildNav() {
     });
     nav.append(link);
   }
+  enableReorder();
+}
+
+// 사이드바 드래그로 순서를 바꾼다. 놓으면 DOM 을 먼저 옮기고 서버(config order)에 저장한다. 실패하면 되돌린다.
+function enableReorder() {
+  let dragging = null;
+  const links = () => [...nav.querySelectorAll("a[data-id]")];
+  const currentOrder = () => links().map((a) => a.dataset.id);
+  const clearMarks = () => links().forEach((a) => a.classList.remove("drop-before", "drop-after"));
+  const applyOrder = (order) => {
+    const byId = new Map(links().map((a) => [a.dataset.id, a]));
+    order.forEach((id) => nav.append(byId.get(id)));
+    items = order.map((id) => items.find((item) => item.id === id));
+  };
+
+  nav.addEventListener("dragstart", (event) => {
+    const link = event.target.closest("a[data-id]");
+    if (!link) return;
+    dragging = link.dataset.id;
+    link.classList.add("dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", dragging);
+  });
+  nav.addEventListener("dragover", (event) => {
+    const link = event.target.closest("a[data-id]");
+    if (!dragging || !link || link.dataset.id === dragging) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const after = dropAfter(event.clientY, link.getBoundingClientRect());
+    clearMarks();
+    link.classList.add(after ? "drop-after" : "drop-before");
+  });
+  nav.addEventListener("dragleave", (event) => {
+    if (!nav.contains(event.relatedTarget)) clearMarks();
+  });
+  nav.addEventListener("drop", async (event) => {
+    const link = event.target.closest("a[data-id]");
+    if (!dragging || !link) return;
+    event.preventDefault();
+    const before = currentOrder();
+    const order = moveItem(before, dragging, link.dataset.id, dropAfter(event.clientY, link.getBoundingClientRect()));
+    clearMarks();
+    if (sameOrder(before, order)) return;
+    applyOrder(order);
+    try {
+      const r = await fetch("/_dashboard/order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order }) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      config = await r.json();
+    } catch {
+      applyOrder(before);
+    }
+  });
+  nav.addEventListener("dragend", () => {
+    links().forEach((a) => a.classList.remove("dragging"));
+    clearMarks();
+    dragging = null;
+  });
 }
 
 function markStatus() {
@@ -217,7 +276,7 @@ async function boot() {
   }
   document.getElementById("project").textContent = config.project;
   document.title = `${config.project} · 도비의 대시보드`;
-  items = config.tabs.filter((tab) => config.enabled.includes(tab.id));
+  items = config.enabled.map((id) => config.tabs.find((tab) => tab.id === id)).filter(Boolean);
   buildNav();
   markStatus();
   checkUpdate(false);

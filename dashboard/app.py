@@ -2,6 +2,7 @@
 
 개인 상태는 `<state_root>/<프로젝트>/<탭 id>/` 에 둔다. 프로젝트를 바꾸면 빈 상태에서 시작하고, 돌아오면 그대로 복원된다.
 `project` 가 없는 옛 config 는 온보딩(값은 미리 채워짐)으로 보내고, 옛 `<state_root>/<탭 id>/` 는 처음 프로젝트 이름을 정할 때 그 아래로 옮긴다.
+사이드바 순서는 config `order`(켜진 탭 id 목록)다. 없거나 빠진 탭은 등록 순서로 뒤에 붙는다. 설정을 다시 저장해도 순서는 유지된다.
 """
 from __future__ import annotations
 
@@ -60,21 +61,43 @@ class Dashboard:
     def status(self) -> list[dict]:
         return [{"id": m.id, "ok": m.handler is not None, "error": m.error} for m in self._mounts.values()]
 
+    def _ordered(self, config: dict, wanted) -> list[str]:
+        """켜진 탭을 wanted 순서로, 빠진 것은 등록 순서로 뒤에. 모르는 id·꺼진 탭은 버린다."""
+        enabled = [tab_id for tab_id in self._order if tab_id in config["tabs"]]
+        wanted = [tab_id for tab_id in (wanted if isinstance(wanted, list) else []) if tab_id in enabled]
+        seen = set()
+        head = [tab_id for tab_id in wanted if not (tab_id in seen or seen.add(tab_id))]
+        return head + [tab_id for tab_id in enabled if tab_id not in seen]
+
     def describe(self) -> dict:
         values = self.config["tabs"] if self.config else {}
         return {
             "configured": self.project is not None,
             "project": self.project or "",
             "tabs": [self._tabs[tab_id].describe() for tab_id in self._order],
-            "enabled": [tab_id for tab_id in self._order if tab_id in values],
+            "enabled": self._ordered(self.config, self.config.get("order")) if self.config else [],
             "values": values,
         }
+
+    def reorder(self, submitted) -> tuple[int, dict]:
+        """사이드바 드래그 결과. 마운트는 건드리지 않고 config 의 order 만 바꾼다."""
+        with self._lock:
+            if not self.project:
+                return 409, {"error": "설정이 먼저다"}
+            wanted = submitted.get("order") if isinstance(submitted, dict) else None
+            if not isinstance(wanted, list):
+                return 400, {"error": "order 는 탭 id 목록이다"}
+            config = {**self.config, "order": self._ordered(self.config, wanted)}
+            self._store.save(config)
+            self.config = config
+        return 200, self.describe()
 
     def apply(self, submitted) -> tuple[int, dict]:
         with self._lock:
             config, errors = normalize(self._tabs, submitted)
             if errors:
                 return 422, {"errors": errors}
+            config["order"] = self._ordered(config, self.config.get("order") if self.config else None)
             self._store.save(config)
             self.config = config
             self._mounts = self._build(config)

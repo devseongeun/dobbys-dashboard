@@ -15,6 +15,10 @@ nav a { position: relative; display: flex; align-items: center; gap: 10px; paddi
 nav a:hover { background: var(--hover); }
 nav a[aria-current="page"] { background: var(--hover); color: var(--acc); font-weight: 600; }
 nav a.warn::after { content: ""; position: absolute; top: 7px; left: 25px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+nav a[draggable] { cursor: grab; }
+nav a.dragging { opacity: .4; }
+nav a.drop-before { box-shadow: 0 -2px 0 0 var(--acc); }
+nav a.drop-after { box-shadow: 0 2px 0 0 var(--acc); }
 .icon { flex: 0 0 20px; text-align: center; }
 .collapse { margin-top: 4px; align-self: flex-start; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: none; color: var(--muted); cursor: pointer; }
 body.collapsed .side { flex-basis: var(--side-min); }

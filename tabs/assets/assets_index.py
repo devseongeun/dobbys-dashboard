@@ -9,7 +9,7 @@
 - 표시 이름은 HTML 제목이 아니라 파일명을 쓴다(파일명 규칙이 일정해 찾기 쉽다). 맨 앞 `프로젝트_버전_` 접두어는 뗀다.
 - 기능 구분·작성일은 각 HTML `<head>`의 `<meta name="feature" content="A, B">`·`<meta name="created" content="YYYY-MM-DD">`에서 읽는다.
   파일명에는 날짜가 없으므로 작성일은 `created` meta가 유일한 원본이다.
-  각 구역 안에서는 기능 구분이 같은 문서끼리 모이도록 기능 구분 → 기존 순서(최종 갱신·작성일)로 정렬한다.
+  각 구역 안은 작성일 내림차순(같은 날은 최종 갱신 순)이고, 기능 구분 묶음은 묶음 안 가장 최신 작성일 순이다. 기능 구분이 없는 문서는 맨 뒤다.
 
 사용: 대시보드가 `sync(folder)`를 부른다. `check=True`면 파일을 쓰지 않고 갱신 필요 여부만 돌려준다.
 """
@@ -95,14 +95,19 @@ def feature_cell(doc: dict) -> str:
 
 
 def grouped(items: list) -> list:
-    # 정렬이 안정적이므로 같은 기능 구분 안에서는 기존 순서가 유지된다. 기능 구분이 없는 문서는 맨 뒤다.
-    return sorted(items, key=lambda d: (not d["features"], d["features"]))
+    # items 는 작성일 내림차순이다. 묶음은 첫 등장(=묶음 안 최신 작성일) 순이고, 안정 정렬이라 묶음 안 순서는 유지된다. 기능 구분이 없는 문서는 맨 뒤다.
+    first = {}
+    for i, d in enumerate(items):
+        first.setdefault(tuple(d["features"]), i)
+    return sorted(items, key=lambda d: (not d["features"], first[tuple(d["features"])]))
+
+
+def by_date(docs: list, state: str) -> list:
+    return grouped(sorted((d for d in docs if d["state"] == state), key=lambda d: (d["date"], d.get("updated", "")), reverse=True))
 
 
 def render(docs: list, folder: Path) -> str:
-    open_docs = grouped(sorted((d for d in docs if d["state"] == "open"), key=lambda d: (d.get("updated", ""), d["date"]), reverse=True))
-    closed = grouped(sorted((d for d in docs if d["state"] == "closed"), key=lambda d: (d.get("updated", ""), d["date"]), reverse=True))
-    refs = grouped(sorted((d for d in docs if d["state"] == "reference"), key=lambda d: d["date"], reverse=True))
+    open_docs, closed, refs = by_date(docs, "open"), by_date(docs, "closed"), by_date(docs, "reference")
 
     lines = [
         f"# {folder.name} 목록",

@@ -43,3 +43,19 @@ class DisplayNameTest(unittest.TestCase):
         for name, title in (("TRB_4.0.0_결재_정책.html", "결재 정책"), ("ABC_v2_배포_설명.html", "배포 설명"),
                             ("배포_설명.html", "배포 설명"), ("EXCN_TYPE_CD_설명.html", "EXCN_TYPE_CD 설명")):
             self.assertEqual(assets_index.display_name(name), title, name)
+
+
+class OrderTest(unittest.TestCase):
+    def test_sections_order_by_date_desc_and_groups_by_newest(self):
+        # B 묶음이 먼저 시작됐지만 최신 작성일(11-05)은 A 라서 A 묶음이 앞이다. 기능 구분 없는 문서는 맨 뒤, 작성일 없음(-)은 묶음 안 맨 뒤다.
+        docs = [
+            {"file": "b-old", "state": "closed", "features": ["B"], "date": "2026-11-03", "updated": "2026-11-09"},
+            {"file": "a-old", "state": "closed", "features": ["A"], "date": "2026-11-04"},
+            {"file": "a-new", "state": "closed", "features": ["A"], "date": "2026-11-05"},
+            {"file": "b-new", "state": "closed", "features": ["B"], "date": "2026-11-04"},
+            {"file": "b-nodate", "state": "closed", "features": ["B"], "date": "-"},
+            {"file": "none", "state": "closed", "features": [], "date": "2026-11-06"},
+            {"file": "other", "state": "open", "features": ["A"], "date": "2026-11-07"},
+        ]
+        self.assertEqual([d["file"] for d in assets_index.by_date(docs, "closed")],
+                         ["a-new", "a-old", "b-new", "b-old", "b-nodate", "none"])

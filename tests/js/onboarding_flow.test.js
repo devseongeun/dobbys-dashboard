@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { buildPayload, buildSteps, firstErrorStep, initialAnswers, initialDraft } from "../../shell/onboarding_flow.js";
+import { buildPayload, buildSteps, initialAnswers, initialDraft, mergePicked, pickStart } from "../../shell/onboarding_flow.js";
 
 const field = (key, extra = {}) => ({ key, label: key, kind: "text", required: false, default: "", help: "", ...extra });
 const TABS = [
@@ -12,18 +12,6 @@ const STEPS = buildSteps(TABS);
 test("단계는 프로젝트 → 탭 순서대로 질문 → 확인", () => {
   expect(STEPS.map((step) => step.kind === "question" ? step.tab.id : step.kind))
     .toEqual(["project", "wbs", "assets", "weekly", "confirm"]);
-});
-
-test("오류 단계는 프로젝트 > 탭 고르기 > 가장 앞 탭 순", () => {
-  const tabErrors = { weekly: { folders: "폴더가 없다" }, assets: { folder: "폴더가 없다" } };
-  expect(firstErrorStep({ _: { project: "x", tabs: "y" }, ...tabErrors }, STEPS)).toBe(0);
-  expect(firstErrorStep({ _: { tabs: "탭을 하나 이상 고른다" }, ...tabErrors }, STEPS)).toBe(1);
-  expect(firstErrorStep(tabErrors, STEPS)).toBe(2);
-});
-
-test("오류가 없거나 모르는 탭 오류뿐이면 null", () => {
-  expect(firstErrorStep({}, STEPS)).toBeNull();
-  expect(firstErrorStep({ wbs: {}, gone: { a: "b" } }, STEPS)).toBeNull();
 });
 
 test("예인 탭만 보내고, 아니요로 바꾼 탭의 남은 입력은 뺀다", () => {
@@ -44,4 +32,17 @@ test("첫 실행은 아무 답도 없고, 옛 config 는 켠 탭 예·나머지 
 test("옛 config 값으로 입력을 미리 채우고 dirs 배열은 줄바꿈으로 잇는다", () => {
   const draft = initialDraft({ tabs: TABS, enabled: ["weekly"], values: { weekly: { folders: ["/a", "/b"] } } });
   expect(draft).toEqual({ wbs: { owner: "", sheet: "WBS" }, assets: { folder: "" }, weekly: { folders: "/a\n/b" } });
+});
+
+test("선택 창 결과: 한 경로 칸은 바꾸고 취소·빈 결과면 그대로, 여러 폴더 칸은 중복 없이 뒤에 붙인다", () => {
+  expect(mergePicked("dir", "/a", ["/b"])).toBe("/b");
+  expect(mergePicked("file", "/a/x.xlsx", [])).toBe("/a/x.xlsx");
+  expect(mergePicked("dirs", "/a\n\n/b ", ["/b", "/c", "/c"])).toBe("/a\n/b\n/c");
+  expect(mergePicked("dirs", "", ["/c"])).toBe("/c");
+});
+
+test("선택 창은 지금 값 근처에서 연다: 여러 폴더 칸은 마지막 줄, 비면 빈 값", () => {
+  expect(pickStart("dir", " /a ")).toBe("/a");
+  expect(pickStart("dirs", "/a\n/b\n")).toBe("/b");
+  expect(pickStart("dirs", "")).toBe("");
 });

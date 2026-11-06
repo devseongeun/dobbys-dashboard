@@ -58,6 +58,9 @@ class StubDashboard:
         self.applied.append(("order", payload))
         return 200, {"enabled": payload.get("order") if isinstance(payload, dict) else []}
 
+    def template(self, tab_id, index):
+        return ("YYYY-MM-DD 계획 제목.md", "---\nstatus: 할 일\n".encode()) if (tab_id, index) == ("plans", "0") else None
+
 
 class StubUpdater:
     def __init__(self):
@@ -85,7 +88,9 @@ class DispatchTest(unittest.TestCase):
             Mount("broken", None, "ConfigError: 설정 없음"),
         ])
         self.updater = StubUpdater()
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_dispatcher(self.dashboard, shell, self.updater))
+        self.picked = []
+        picker = type("StubPicker", (), {"pick": lambda _, payload: (self.picked.append(payload), (200, {"paths": ["/a"]}))[1]})()
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_dispatcher(self.dashboard, shell, self.updater, picker))
         self.server.daemon_threads = True
         self.port = self.server.server_address[1]
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
@@ -204,6 +209,24 @@ class DispatchTest(unittest.TestCase):
         self.assertEqual(self.request("PUT", "/_dashboard/update")[0], 405)
         self.assertEqual(self.request("POST", "/_dashboard/update", host="evil.example.com")[0], 403)
         self.assertEqual(self.updater.applied, 1)
+
+    def test_template_downloads_as_attachment_with_utf8_name(self):
+        status, headers, body = self.request("GET", "/_dashboard/templates/plans/0")
+        self.assertEqual((status, body.decode()), (200, "---\nstatus: 할 일\n"))
+        self.assertEqual(headers["Content-Type"], "text/markdown; charset=utf-8")
+        self.assertEqual(headers["Content-Disposition"],
+                         "attachment; filename*=UTF-8''YYYY-MM-DD%20%EA%B3%84%ED%9A%8D%20%EC%A0%9C%EB%AA%A9.md")
+        for path in ("/_dashboard/templates/plans/1", "/_dashboard/templates/nope/0", "/_dashboard/templates/"):
+            self.assertEqual(self.request("GET", path)[0], 404, path)
+        self.assertEqual(self.request("GET", "/_dashboard/templates/plans/0", host="evil.example.com")[0], 403)
+
+    def test_pick_post_passes_payload_only_from_local_host(self):
+        status, _, body = self.request("POST", "/_dashboard/pick", body=b'{"kind": "dir"}', headers={"Content-Type": "application/json"})
+        self.assertEqual((status, json.loads(body)), (200, {"paths": ["/a"]}))
+        self.assertEqual(self.request("POST", "/_dashboard/pick", host="evil.example.com", body=b'{"kind": "dir"}',
+                                      headers={"Content-Type": "application/json"})[0], 403)
+        self.assertEqual(self.request("GET", "/_dashboard/pick")[0], 404)
+        self.assertEqual(self.picked, [{"kind": "dir"}])
 
     def test_update_api_is_404_without_updater(self):
         shell = Path(self.enterContext(tempfile.TemporaryDirectory()))

@@ -2,13 +2,16 @@
 // - 첫 실행(configured=false): 불편 지점을 하나씩 묻고, 예라고 답한 탭의 설정을 그 자리에서 받는다.
 // - ⚙ 설정(configured=true): ① 쓸 탭 고르기 → ② 고른 탭의 경로·옵션을 한 화면에서 고친다.
 // 로그인이 필요한 탭(WBS·Jira, 기획서 코멘트 현황)은 여기서 로그인하지 않는다. 각 탭 안에서 한다.
-import { buildPayload, buildSteps, firstErrorStep, hasErrors, initialAnswers, initialDraft, questionText, valueOf } from "./onboarding_flow.js";
+// 문서 안 형식에서 상태를 읽는 탭(의사결정·구현 진행 현황)은 질문 단계·확인 단계·⚙ 설정에서 템플릿을 내려받게 한다.
+import { buildPayload, buildSteps, hasErrors, initialAnswers, initialDraft, mergePicked, pickStart, questionText, valueOf } from "./onboarding_flow.js";
 
-const HINT = {
-  dir: "Finder에서 폴더를 골라 ⌥⌘C(경로 복사) 후 붙여넣으세요.",
-  file: "Finder에서 파일을 골라 ⌥⌘C(경로 복사) 후 붙여넣으세요.",
-  dirs: "한 줄에 폴더 하나씩, Finder에서 ⌥⌘C로 복사해 붙여넣으세요.",
-  text: "",
+// 경로 칸은 직접 적지 않는다. 버튼(또는 칸)을 누르면 서버가 Finder 선택 창을 띄우고 고른 절대 경로를 채운다.
+const PATH_KINDS = new Set(["dir", "file", "dirs"]);
+const PICK_LABEL = { dir: "폴더 선택", file: "파일 선택", dirs: "폴더 추가" };
+const PLACEHOLDER = {
+  dir: "폴더 선택을 누르면 고른 폴더가 여기 표시됩니다",
+  file: "파일 선택을 누르면 고른 파일이 여기 표시됩니다",
+  dirs: "폴더 추가를 누르면 고른 폴더가 한 줄에 하나씩 쌓입니다",
 };
 
 function el(tag, attrs = {}, ...children) {
@@ -29,25 +32,75 @@ function button(text, onClick, attrs = {}) {
   return node;
 }
 
+// Finder 선택 창 결과. 취소하면 null, 실패하면 예외.
+async function pickPaths(kind, current) {
+  const res = await fetch("/_dashboard/pick", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, current }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || "HTTP " + res.status);
+  return body.cancelled ? null : body.paths ?? [];
+}
+
+// 경로 칸의 선택·비우기 버튼. 값을 바꾸면 input 이벤트를 보내 질문 단계의 draft 도 따라가게 한다.
+function pathControls(field, input) {
+  const note = el("p", { class: "error", hidden: true });
+  const set = (value) => {
+    input.value = value;
+    input.dispatchEvent(new Event("input"));
+  };
+  const choose = button(PICK_LABEL[field.kind], async () => {
+    if (choose.disabled) return;
+    choose.disabled = true;
+    note.hidden = true;
+    try {
+      const picked = await pickPaths(field.kind, pickStart(field.kind, input.value));
+      if (picked) set(mergePicked(field.kind, input.value, picked));
+    } catch (err) {
+      note.textContent = err.message;
+      note.hidden = false;
+    } finally {
+      choose.disabled = false;
+    }
+  });
+  input.addEventListener("click", () => choose.click());
+  const clear = field.kind === "dirs" || !field.required ? button("비우기", () => set("")) : "";
+  return { controls: el("div", { class: "pick" }, choose, clear), note };
+}
+
 // 필드 한 줄: 이름, 입력란, 안내, 오류. input 은 값 읽기·이벤트용으로 따로 돌려준다.
+// 경로 칸은 label 대신 div 다. label 이면 안내 글자를 눌러도 선택 창이 뜬다.
 function fieldRow(name, field, value, error) {
+  const isPath = PATH_KINDS.has(field.kind);
+  const title = field.label + (field.required ? " ✱" : "");
   const input = field.kind === "dirs"
     ? el("textarea", { name, rows: 3 })
     : el("input", { name, type: "text", autocomplete: "off", spellcheck: "false" });
   input.value = value;
-  if (field.placeholder) input.placeholder = field.placeholder;
-  else if (field.kind !== "text") input.placeholder = field.kind === "file" ? "~/Downloads/파일.xlsx" : "~/Documents/…";
-  const hint = [field.help, HINT[field.kind]].filter(Boolean).join(" ");
-  const row = el("label", { class: "field" },
-    el("span", { text: field.label + (field.required ? " ✱" : "") }),
+  input.placeholder = field.placeholder ?? PLACEHOLDER[field.kind] ?? "";
+  const picker = isPath ? pathControls(field, input) : null;
+  if (isPath) {
+    input.readOnly = true;
+    input.classList.add("path");
+    input.setAttribute("aria-label", title);
+  }
+  const row = el(isPath ? "div" : "label", { class: "field" },
+    el("span", { text: title }),
     input,
-    hint ? el("span", { class: "hint", text: hint }) : "",
+    picker ? picker.controls : "",
+    picker ? picker.note : "",
+    field.help ? el("span", { class: "hint", text: field.help }) : "",
     error ? el("p", { class: "error", text: error }) : "");
   return { row, input };
 }
 
 const projectRow = (value, error) => fieldRow("project",
   { key: "project", label: "프로젝트 이름", kind: "text", required: true, placeholder: "예: TRB 4.0.0" }, value, error);
+
+// 탭이 읽는 형식을 미리 채운 문서 템플릿 내려받기 줄. 템플릿이 없는 탭은 빈 배열.
+const templateRows = (tab) => (tab.templates ?? []).map((template) => el("p", { class: "template" },
+  el("a", { href: template.url, download: template.name, text: `⬇ ${template.name}` }),
+  template.help ? el("span", { class: "hint", text: template.help }) : ""));
 
 // 200 이면 새로고침하고 null, 422 면 오류 객체, 그 밖에는 예외.
 async function submit(payload) {
@@ -73,16 +126,39 @@ function openQuestions(root, config) {
   const state = {
     step: 0, project: config.project ?? "", answers: initialAnswers(config), draft: initialDraft(config),
     errors: {}, failure: "", saving: false,
+    open: new Set(),  // 확인 단계에서 펼친 탭 id
   };
 
   const go = (step) => { state.step = step; render(); };
 
-  function render() {
+  // keep: 같은 화면을 다시 그릴 때(확인 단계 토글·펼치기) 스크롤을 지키고 data-key 가 같은 요소에 초점을 돌려준다.
+  function render(keep = null) {
+    const scrolled = root.scrollTop;
     const step = steps[state.step];
     const view = step.kind === "project" ? projectStep() : step.kind === "question" ? questionStep(step.tab) : confirmStep();
     root.replaceChildren(...view.nodes);
+    if (keep) {
+      root.scrollTop = scrolled;
+      root.querySelector(`[data-key="${keep}"]`)?.focus({ preventScroll: true });
+      return;
+    }
     root.scrollTop = 0;
     view.focus?.focus();
+  }
+
+  // 탭 하나의 입력 항목과 템플릿. 입력은 draft 에 바로 담는다. 질문 단계와 확인 단계 아코디언이 함께 쓴다.
+  function tabFields(tab) {
+    const nodes = [];
+    let first = null;
+    if (!tab.fields.length) nodes.push(el("p", { class: "hint", text: "입력할 항목이 없습니다." }));
+    for (const field of tab.fields) {
+      const { row, input } = fieldRow(`${tab.id}.${field.key}`, field, state.draft[tab.id][field.key], state.errors[tab.id]?.[field.key]);
+      input.addEventListener("input", () => { state.draft[tab.id][field.key] = input.value; });
+      first ??= input;
+      nodes.push(row);
+    }
+    nodes.push(...templateRows(tab));
+    return { nodes, first };
   }
 
   // Enter 로 다음 단계: 단계마다 form 하나, submit 이 곧 "다음"(확인 단계는 "저장").
@@ -100,7 +176,7 @@ function openQuestions(root, config) {
     return {
       nodes: [
         el("h1", { text: "어떤 프로젝트의 대시보드를 만들까요?" }),
-        el("p", { class: "muted", text: "필요한 탭만 활성화할게요." }),
+        el("p", { class: "muted", text: "필요한 탭만 활성화할게요. 여기서 입력한 값은 나중에 사이드바 ⚙ 설정에서 언제든 바꿀 수 있어요." }),
         form,
       ],
       focus: input,
@@ -130,15 +206,9 @@ function openQuestions(root, config) {
     children.push(el("div", { class: "choices" }, yes, no));
     let first = null;
     if (answer === true) {
-      const set = el("fieldset", {}, el("legend", { text: `${tab.icon} ${tab.label} 탭을 켭니다` }));
-      if (!tab.fields.length) set.append(el("p", { class: "hint", text: "입력할 항목이 없습니다." }));
-      for (const field of tab.fields) {
-        const { row, input } = fieldRow(`${tab.id}.${field.key}`, field, state.draft[tab.id][field.key], state.errors[tab.id]?.[field.key]);
-        input.addEventListener("input", () => { state.draft[tab.id][field.key] = input.value; });
-        first ??= input;
-        set.append(row);
-      }
-      children.push(set);
+      const fields = tabFields(tab);
+      first = fields.first;
+      children.push(el("fieldset", {}, el("legend", { text: `${tab.icon} ${tab.label} 탭을 켭니다` }), ...fields.nodes));
     }
     const next = answer === undefined ? "" : el("button", { class: "primary", type: "submit", text: "다음" });
     children.push(el("div", { class: "actions" }, button("이전", () => go(state.step - 1)), next));
@@ -149,16 +219,34 @@ function openQuestions(root, config) {
     };
   }
 
+  // 탭마다 한 줄: 머리(누르면 입력 항목이 펼쳐짐)와 켬·끔 토글. 켜면 바로 펼친다.
+  function confirmRow(tab) {
+    const on = state.answers[tab.id] === true;
+    const open = state.open.has(tab.id);
+    const head = button("", () => {
+      if (open) state.open.delete(tab.id);
+      else state.open.add(tab.id);
+      render(`${tab.id}-head`);
+    }, { class: "acc-head", "aria-expanded": open ? "true" : "false", "data-key": `${tab.id}-head` });
+    head.append(el("span", { class: "icon", text: tab.icon }), el("span", { class: "label", text: tab.label }),
+      hasErrors(state.errors, tab.id) ? el("span", { class: "error", text: "오류" }) : "",
+      el("span", { class: "chevron", "aria-hidden": "true", text: open ? "▴" : "▾" }));
+    const toggle = button("", () => {
+      state.answers[tab.id] = !on;
+      if (on) state.open.delete(tab.id);
+      else state.open.add(tab.id);
+      render(`${tab.id}-switch`);
+    }, { class: "switch", role: "switch", "aria-checked": on ? "true" : "false", "aria-label": `${tab.label} 탭 켜기`, "data-key": `${tab.id}-switch` });
+    toggle.append(el("span", { class: "track", "aria-hidden": "true" }, el("span", { class: "knob" })),
+      el("span", { class: "state", text: on ? "켬" : "끔" }));
+    const body = !open ? ""
+      : el("div", { class: "acc-body" }, ...(on ? tabFields(tab).nodes : [el("p", { class: "hint", text: "탭을 켜면 입력 항목을 채울 수 있습니다." })]));
+    return el("li", { class: on ? "on" : "off" }, el("div", { class: "acc-row" }, head, toggle), body);
+  }
+
   function confirmStep() {
-    const list = el("ul", { class: "tabs summary" }, ...steps.slice(1, -1).map(({ tab }, i) => {
-      const on = state.answers[tab.id] === true;
-      const item = button("", () => go(i + 1), { class: on ? "" : "off" });
-      item.append(el("span", { class: "icon", text: tab.icon }), el("span", { class: "label", text: tab.label }),
-        hasErrors(state.errors, tab.id) ? el("span", { class: "error", text: "오류" }) : "",
-        el("span", { class: "state", text: on ? "켬" : "끔" }));
-      return el("li", {}, item);
-    }));
-    const none = !steps.some((step) => step.kind === "question" && state.answers[step.tab.id] === true);
+    const list = el("ul", { class: "accordion" }, ...config.tabs.map(confirmRow));
+    const none = !config.tabs.some((tab) => state.answers[tab.id] === true);
     const save = el("button", { class: "primary", type: "submit", disabled: none || state.saving, text: state.saving ? "저장 중…" : "저장" });
     const form = stepForm(async () => {
       if (none || state.saving) return;
@@ -170,7 +258,13 @@ function openQuestions(root, config) {
         if (!errors) return;
         state.saving = false;
         state.errors = errors;
-        go(firstErrorStep(errors, steps) ?? state.step);
+        if (errors._?.project) {
+          go(0);
+          return;
+        }
+        // 오류 난 탭은 확인 화면에서 펼쳐 바로 고친다.
+        for (const tab of config.tabs) if (hasErrors(errors, tab.id)) state.open.add(tab.id);
+        render();
       } catch (err) {
         state.saving = false;
         state.failure = "저장 실패: " + err.message;
@@ -178,13 +272,14 @@ function openQuestions(root, config) {
       }
     },
     state.failure ? el("p", { class: "error", text: state.failure }) : "",
+    state.errors._?.tabs ? el("p", { class: "error", text: state.errors._.tabs }) : "",
     list,
-    none ? el("p", { class: "error", text: "하나 이상 예를 고르세요." }) : "",
+    none ? el("p", { class: "error", text: "하나 이상 켜세요." }) : "",
     el("div", { class: "actions" }, button("이전", () => go(state.step - 1)), save));
     return {
       nodes: [
         el("h1", { text: "확인" }),
-        el("p", { class: "muted", text: `프로젝트 ${state.project || "(이름 없음)"}. 켬인 탭만 사이드바에 보입니다. 항목을 누르면 그 질문으로 돌아갑니다.` }),
+        el("p", { class: "muted", text: `프로젝트 ${state.project || "(이름 없음)"}. 켠 탭만 사이드바에 보입니다. 토글로 켜고 끄고, 탭 이름을 누르면 입력 항목이 펼쳐집니다. 저장한 뒤에도 사이드바 ⚙ 설정에서 프로젝트 이름, 탭 켜기·끄기, 경로를 바꿀 수 있습니다.` }),
         form,
       ],
       focus: save,
@@ -234,6 +329,7 @@ function openSettings(root, config) {
       for (const field of tab.fields) {
         set.append(fieldRow(`${tab.id}.${field.key}`, field, valueOf(config, tab, field), errors[tab.id]?.[field.key]).row);
       }
+      set.append(...templateRows(tab));
       form.append(set);
     }
     const save = el("button", { class: "primary", type: "submit", text: "저장" });

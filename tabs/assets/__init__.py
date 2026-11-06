@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from dashboard.dispatch import Mount
-from dashboard.tab import Field, Tab
+from dashboard.tab import Field, Tab, Template
 
 
 def _build(settings: dict, state_dir: Path) -> Mount:
@@ -29,4 +29,6 @@ TAB = Tab(
     build=_build,
     question="의사결정 기록과 현황을 파악하고 싶어요",
     summary="문의 문서마다 회신 대상과 미결, 완료 상태를 한눈에 볼 수 있어요.",
+    templates=(Template(Path(__file__).parent / "templates" / "의사결정_문서_제목.html",
+                        help="기능 구분, 작성일 meta와 문의 현황 표가 들어 있습니다. 폴더에 넣고 제목, 기능 구분, 회신 대상, 문의 사항을 고쳐 쓰세요."),),
 )

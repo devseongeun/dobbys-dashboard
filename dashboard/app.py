@@ -58,6 +58,11 @@ class Dashboard:
     def mount(self, mount_id: str) -> Mount | None:
         return self._mounts.get(mount_id)
 
+    def template(self, tab_id: str, index: str) -> tuple[str, bytes] | None:
+        """켜지지 않은 탭의 템플릿도 준다. 온보딩 중 탭을 켜기 전에 내려받는다."""
+        tab = self._tabs.get(tab_id)
+        return tab.template(index) if tab else None
+
     def status(self) -> list[dict]:
         return [{"id": m.id, "ok": m.handler is not None, "error": m.error} for m in self._mounts.values()]
 

@@ -7,6 +7,6 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 PORT="${PORT:-8790}"
 SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/dobbys-sandbox.XXXXXX")"
 trap 'rm -rf "$SANDBOX"' EXIT INT TERM
-echo "샌드박스: $SANDBOX  (경로는 ~ 대신 /Users/... 절대 경로로 적는다. ~ 는 샌드박스 폴더를 가리킨다)"
+echo "샌드박스: $SANDBOX  (설정·상태는 여기 쌓인다. 경로는 Finder 선택 창으로 실제 폴더를 고른다)"
 cd "$REPO"
 HOME="$SANDBOX" PORT="$PORT" python3 serve.py

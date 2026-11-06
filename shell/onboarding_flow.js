@@ -40,11 +40,13 @@ export function buildPayload(project, tabs, answers, draft) {
 
 export const hasErrors = (errors, tabId) => Object.keys(errors?.[tabId] ?? {}).length > 0;
 
-// 422 오류를 받고 이동할 단계. 프로젝트 → 탭 고르기(첫 질문) → 오류 난 탭 중 가장 앞. 맞는 게 없으면 null.
-export function firstErrorStep(errors, steps) {
-  if (errors?._?.project) return 0;
-  const firstQuestion = steps.findIndex((step) => step.kind === "question");
-  if (errors?._?.tabs) return firstQuestion < 0 ? null : firstQuestion;
-  const index = steps.findIndex((step) => step.kind === "question" && hasErrors(errors, step.tab.id));
-  return index < 0 ? null : index;
+const lines = (text) => text.split("\n").map((line) => line.trim()).filter(Boolean);
+
+// Finder 선택 창을 열 위치로 보낼 지금 값. 여러 폴더 칸은 마지막 줄(가장 최근에 고른 폴더) 근처에서 연다.
+export const pickStart = (kind, value) => (kind === "dirs" ? lines(value).at(-1) : value.trim()) ?? "";
+
+// 선택 창 결과를 칸 값으로. 한 경로 칸은 바꾸고, 여러 폴더 칸은 뒤에 붙이되 이미 있는 폴더는 다시 넣지 않는다.
+export function mergePicked(kind, value, picked) {
+  if (kind !== "dirs") return picked[0] ?? value;
+  return [...new Set([...lines(value), ...picked])].join("\n");
 }

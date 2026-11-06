@@ -64,9 +64,25 @@ main iframe[hidden] { display: block; visibility: hidden; pointer-events: none; 
 .onboarding button.choice { min-width: 110px; padding: 10px 18px; font-size: 15px; }
 .onboarding button.choice[aria-pressed="true"] { border-color: var(--acc); color: var(--acc); font-weight: 600; }
 .onboarding button.choice[aria-pressed="true"]::before { content: "✓ "; }
-.onboarding .summary button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px; border-radius: 10px; text-align: left; }
-.onboarding .summary button:hover { background: var(--hover); }
-.onboarding .summary .label { flex: 1; }
-.onboarding .summary .state { color: var(--acc); font-weight: 600; }
-.onboarding .summary button.off { color: var(--muted); }
-.onboarding .summary button.off .state { color: var(--muted); font-weight: 400; }
+.onboarding .accordion { list-style: none; padding: 0; display: grid; gap: 8px; margin: 20px 0; }
+.onboarding .accordion > li { border: 1px solid var(--line); border-radius: 10px; }
+.onboarding .acc-row { display: flex; align-items: center; }
+.onboarding .acc-head { flex: 1; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 0; border-radius: 10px; text-align: left; }
+.onboarding .acc-head:hover { background: var(--hover); }
+.onboarding .acc-head .label { flex: 1; }
+.onboarding .acc-head .chevron { color: var(--muted); }
+.onboarding .accordion > li.off .acc-head { color: var(--muted); }
+.onboarding .acc-body { padding: 0 16px 16px; border-top: 1px solid var(--line); }
+.onboarding button.switch { display: flex; align-items: center; gap: 8px; margin-right: 10px; padding: 6px 8px; border: 0; }
+.onboarding .switch .track { position: relative; width: 36px; height: 20px; border-radius: 999px; background: var(--line); transition: background .15s; }
+.onboarding .switch .knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
+.onboarding .switch[aria-checked="true"] .track { background: var(--acc); }
+.onboarding .switch[aria-checked="true"] .knob { left: 18px; }
+.onboarding .switch .state { min-width: 2em; font-size: 13px; color: var(--muted); }
+.onboarding .switch[aria-checked="true"] .state { color: var(--acc); font-weight: 600; }
+.onboarding .template { display: grid; gap: 2px; margin: 10px 0 0; }
+.onboarding .template a { color: var(--acc); text-decoration: none; font-weight: 600; }
+.onboarding .path { cursor: pointer; }
+.onboarding .pick { display: flex; gap: 6px; }
+.onboarding .pick button { padding: 4px 12px; font-size: 13px; }
+.onboarding .template a:hover { text-decoration: underline; }

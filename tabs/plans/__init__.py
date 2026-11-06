@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from dashboard.dispatch import Mount
-from dashboard.tab import Field, Tab
+from dashboard.tab import Field, Tab, Template
 
 
 def _build(settings: dict, state_dir: Path) -> Mount:
@@ -29,4 +29,6 @@ TAB = Tab(
     build=_build,
     question="구현이 어디까지 진행됐는지 한눈에 보고 싶어요",
     summary="구현 계획 md의 상태, 진행률, 체크 항목을 기능별로 모아 봐요.",
+    templates=(Template(Path(__file__).parent / "templates" / "YYYY-MM-DD 계획 제목.md",
+                        help="frontmatter status, progress, feature, updated가 들어 있습니다. 폴더에 넣고 파일명의 YYYY-MM-DD를 작성일로, 제목과 값을 고쳐 쓰세요."),),
 )

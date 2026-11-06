@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 
 from tabs.assets import TAB, assets_index
@@ -43,6 +44,21 @@ class DisplayNameTest(unittest.TestCase):
         for name, title in (("TRB_4.0.0_결재_정책.html", "결재 정책"), ("ABC_v2_배포_설명.html", "배포 설명"),
                             ("배포_설명.html", "배포 설명"), ("EXCN_TYPE_CD_설명.html", "EXCN_TYPE_CD 설명")):
             self.assertEqual(assets_index.display_name(name), title, name)
+
+
+class TemplateTest(unittest.TestCase):
+    def test_downloaded_template_reads_as_open_doc_with_meta_and_counts(self):
+        folder = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        name, body = TAB.template("0")
+        (folder / name).write_bytes(body)
+        doc, today = assets_index.read(folder / name), date.today().isoformat()
+        self.assertEqual(
+            (doc["title"], doc["state"], doc["features"], doc["date"], doc["who"], doc["open"], doc["done"], doc["updated"]),
+            ("의사결정 문서 제목", "open", ["기능 구분 A", "기능 구분 B"], today, "담당자 이름", "2", "0", today))
+
+    def test_unknown_template_index_is_none(self):
+        for index in ("1", "-1", "", "٠", "0/x"):
+            self.assertIsNone(TAB.template(index), index)
 
 
 class OrderTest(unittest.TestCase):

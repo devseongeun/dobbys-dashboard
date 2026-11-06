@@ -1,8 +1,9 @@
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 
-from tabs.plans import plans_index, plans_index_html
+from tabs.plans import TAB, plans_index, plans_index_html
 from tabs.plans.plans_serve import resolve_plan
 
 DONE_WITH_OPEN = """---
@@ -75,6 +76,17 @@ class ReadPlanTest(unittest.TestCase):
             plan = self.read("2026-10-19 e.md", f"---\nfeature: {raw}\n---\n")
             self.assertEqual(plan["features"], ["외부 결재", "배포"], raw)
         self.assertEqual(self.read("2026-10-19 f.md", "---\nfeature:\n---\n")["features"], ["미분류"])
+
+    def test_downloaded_template_with_dated_name_reads_as_todo_without_warnings(self):
+        name, body = TAB.template("0")
+        today = date.today().isoformat()
+        self.assertEqual(name, "YYYY-MM-DD 계획 제목.md")  # 내려받는 날과 무관하게 같다. 날짜는 사용자가 채운다
+        plan = self.read(name.replace("YYYY-MM-DD", "2026-11-01"), body.decode("utf-8"))
+        self.assertEqual(
+            (plan["title"], plan["state"], plan["progress"], plan["features"], plan["date"], plan["updated"],
+             plan["checked"], plan["total"]),
+            ("계획 제목", "todo", 0, ["기능 구분 A", "기능 구분 B"], "2026-11-01", today, 0, 2))
+        self.assertEqual(self.warnings, [])
 
 
 class SyncTest(unittest.TestCase):

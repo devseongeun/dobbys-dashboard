@@ -2,7 +2,7 @@
 
 - `/{id}/...` 는 prefix 를 떼고 그 탭 handler 로 넘긴다. 보안 검사는 각 탭 handler 가 한다.
 - `/{id}` 는 `/{id}/` 로 301. 앱 안의 상대 경로가 맞게 풀리게 한다.
-- 그 밖의 경로는 셸(정적 파일·상태·설정·업데이트 API)이다. Host 가 로컬이 아니면 403(DNS 리바인딩 방어).
+- 그 밖의 경로는 셸(정적 파일·상태·설정·업데이트 API·탭 문서 템플릿·Finder 경로 선택)이다. Host 가 로컬이 아니면 403(DNS 리바인딩 방어).
 - 켜진 탭은 dashboard 가 들고 있다. 설정을 저장하면 dashboard 가 마운트 표를 바꾼다.
 """
 from __future__ import annotations
@@ -13,7 +13,7 @@ import traceback
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 ALLOWED_HOSTNAMES = frozenset({"127.0.0.1", "localhost", "::1"})
 SHELL_FILES = {
@@ -31,6 +31,7 @@ MIME = {
     ".html": "text/html; charset=utf-8",
     ".css": "text/css; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
+    ".md": "text/markdown; charset=utf-8",
 }
 # BaseHTTPRequestHandler.__init__/handle_one_request 가 채우는 요청 상태. inner handler 로 그대로 옮긴다.
 COPIED = (
@@ -40,6 +41,8 @@ COPIED = (
 CONFIG_API = "/_dashboard/config"
 UPDATE_API = "/_dashboard/update"
 ORDER_API = "/_dashboard/order"
+TEMPLATE_API = "/_dashboard/templates/"  # + <탭 id>/<순번>
+PICK_API = "/_dashboard/pick"
 MAX_CONFIG_BYTES = 64 * 1024
 
 
@@ -58,10 +61,11 @@ def host_allowed(raw: str) -> bool:
         return False
 
 
-def make_dispatcher(dashboard, shell_root: Path, updater=None):
+def make_dispatcher(dashboard, shell_root: Path, updater=None, picker=None):
     """dashboard: mount(id) -> Mount|None, status() -> list, describe() -> dict, apply(payload) -> (status, body),
-    reorder(payload) -> (status, body).
-    updater: check(refresh) -> dict, apply() -> (status, body). None 이면 업데이트 API 는 404."""
+    reorder(payload) -> (status, body), template(id, index) -> (파일명, 본문)|None.
+    updater: check(refresh) -> dict, apply() -> (status, body). None 이면 업데이트 API 는 404.
+    picker: pick(payload) -> (status, body). None 이면 경로 선택 API 는 404."""
     shell_root = shell_root.resolve()
 
     class DispatchHandler(BaseHTTPRequestHandler):
@@ -145,6 +149,9 @@ def make_dispatcher(dashboard, shell_root: Path, updater=None):
             if path in (CONFIG_API, ORDER_API) and self.command == "POST":
                 self._post_json(dashboard.apply if path == CONFIG_API else dashboard.reorder)
                 return
+            if path == PICK_API and picker is not None and self.command == "POST":
+                self._post_json(picker.pick)
+                return
             if path == UPDATE_API and updater is not None:
                 if self.command == "POST":
                     status, body = updater.apply()
@@ -163,6 +170,16 @@ def make_dispatcher(dashboard, shell_root: Path, updater=None):
                 return
             if path == CONFIG_API:
                 self._json(200, dashboard.describe())
+                return
+            if path.startswith(TEMPLATE_API):
+                tab_id, _, index = path[len(TEMPLATE_API):].partition("/")
+                found = dashboard.template(tab_id, index)
+                if found is None:
+                    self._json(404, {"error": "not found"})
+                    return
+                name, body = found
+                self._send(200, body, MIME.get(Path(name).suffix, "application/octet-stream"),
+                           (("Content-Disposition", f"attachment; filename*=UTF-8''{quote(name)}"),))
                 return
             name = SHELL_FILES.get(path)
             target = shell_root / name if name else None

@@ -519,10 +519,16 @@ async function postJson(url, body, method = "POST") {
   return data;
 }
 
+let jiraLoginPending = false;
+
 async function jiraLogin() {
+  // 버튼 클릭과 토큰 칸 Enter 가 각각 부르므로, 진행 중이면 다시 보내지 않는다(키체인 동시 생성 → 「이미 존재」 실패).
+  if (jiraLoginPending) return;
   const email = document.getElementById("jemail").value.trim();
   const token = document.getElementById("jtoken").value.trim();
   if (!email || !token) { app.jiraNotice = "이메일과 API token 을 입력한다"; renderJira(); return; }
+  jiraLoginPending = true;
+  document.getElementById("jiralogin").disabled = true;
   try {
     await postJson("api/login", { email, token });
     app.jiraNotice = "";
@@ -533,6 +539,8 @@ async function jiraLogin() {
     // 다시 그리면 입력칸이 비므로, 입력하던 값을 되살린다.
     document.getElementById("jemail").value = email;
     document.getElementById("jtoken").value = token;
+  } finally {
+    jiraLoginPending = false;
   }
 }
 

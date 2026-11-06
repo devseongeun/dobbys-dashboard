@@ -1,4 +1,5 @@
 import subprocess
+import threading
 import unittest
 
 from dashboard.keychain import Keychain, KeychainError
@@ -50,6 +51,29 @@ class KeychainTest(unittest.TestCase):
     def test_set_failure_raises(self):
         with self.assertRaises(KeychainError):
             Keychain(run=FakeRun((1, ""))).set("jira", {"token": "x"})
+
+    def test_concurrent_sets_run_security_one_at_a_time(self):
+        # security 의 -U 는 찾기→만들기가 원자적이지 않아, 같은 항목을 동시에 만들면 늦은 쪽이 -25299 로 실패한다.
+        first_inside, second_inside, release = threading.Event(), threading.Event(), threading.Event()
+
+        def run(args, **kwargs):
+            if not first_inside.is_set():
+                first_inside.set()
+                release.wait(1)
+            else:
+                second_inside.set()
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        keychain = Keychain(run=run)
+        threads = [threading.Thread(target=keychain.set, args=("jira", {"token": "x"})) for _ in range(2)]
+        threads[0].start()
+        self.assertTrue(first_inside.wait(1))
+        threads[1].start()
+        self.assertFalse(second_inside.wait(0.2), "첫 security 가 끝나기 전에 두 번째가 들어갔다")
+        release.set()
+        for thread in threads:
+            thread.join(1)
+        self.assertTrue(second_inside.is_set())
 
     def test_get_missing_item_is_none(self):
         self.assertIsNone(Keychain(run=FakeRun((44, ""))).get("jira"))

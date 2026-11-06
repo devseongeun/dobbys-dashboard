@@ -4,11 +4,14 @@
 `-w` 로 값을 stdin·프롬프트에서 읽히면 128바이트에서 잘리기 때문이다. 한 줄 길이 제한(약 4096자) 때문에
 hex 로 늘어나기 전 값은 MAX_VALUE_BYTES 까지만 받는다.
 값은 ASCII JSON 으로 저장한다(비ASCII 면 find -w 가 hex 로 돌려준다).
+쓰기(set·delete)는 lock 으로 직렬화한다. `-U` 는 찾기→만들기가 원자적이지 않아, 같은 항목을 동시에 만들면
+늦은 쪽이 「이미 존재(-25299)」로 실패하기 때문이다.
 """
 from __future__ import annotations
 
 import json
 import subprocess
+import threading
 
 ACCOUNT = "default"
 NOT_FOUND = 44
@@ -24,6 +27,7 @@ class Keychain:
     def __init__(self, prefix: str = "dobbys-dashboard", run=subprocess.run):
         self._prefix = prefix
         self._run = run
+        self._write_lock = threading.Lock()
 
     def _service(self, name: str) -> str:
         return f"{self._prefix}.{name}"
@@ -61,13 +65,15 @@ class Keychain:
         if len(secret) > MAX_VALUE_BYTES:
             raise KeychainError(f"키체인에 넣을 값이 너무 길다 ({service})")
         command = f"add-generic-password -U -s {service} -a {ACCOUNT} -X {secret.hex()}\n"
-        done = self._call(service, ["-i"], stdin=command)
+        with self._write_lock:
+            done = self._call(service, ["-i"], stdin=command)
         # -i 모드는 명령이 실패해도 종료 코드가 0일 수 있어, stderr 에 무엇이든 찍히면 실패로 본다.
         if done.returncode != 0 or done.stderr.strip():
             raise KeychainError(f"키체인 저장 실패 ({service}, 코드 {done.returncode})")
 
     def delete(self, name: str) -> None:
         service = self._service(name)
-        done = self._call(service, ["delete-generic-password", "-s", service, "-a", ACCOUNT])
+        with self._write_lock:
+            done = self._call(service, ["delete-generic-password", "-s", service, "-a", ACCOUNT])
         if done.returncode not in (0, NOT_FOUND):
             raise KeychainError(f"키체인 삭제 실패 ({self._service(name)}, 코드 {done.returncode})")

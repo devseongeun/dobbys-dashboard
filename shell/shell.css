@@ -42,8 +42,6 @@ main iframe[hidden] { display: block; visibility: hidden; pointer-events: none; 
 .onboarding > * { max-width: 720px; margin-left: auto; margin-right: auto; }
 .onboarding h1 { font-size: 20px; margin-top: 0; margin-bottom: 8px; }
 .onboarding .muted, .onboarding .hint { color: var(--muted); }
-.onboarding .tabs { list-style: none; padding: 0; display: grid; gap: 8px; margin-top: 20px; margin-bottom: 20px; }
-.onboarding .tabs label { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
 .onboarding fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px 16px; margin: 16px 0; }
 .onboarding legend { font-weight: 600; padding: 0 6px; }
 .onboarding .field { display: grid; gap: 4px; margin-top: 12px; }

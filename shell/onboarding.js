@@ -1,9 +1,9 @@
 // 온보딩·설정 화면. 저장 계약은 하나: POST /_dashboard/config → 422 면 오류 표시, 성공하면 새로고침.
 // - 첫 실행(configured=false): 불편 지점을 하나씩 묻고, 예라고 답한 탭의 설정을 그 자리에서 받는다.
-// - ⚙ 설정(configured=true): ① 쓸 탭 고르기 → ② 고른 탭의 경로·옵션을 한 화면에서 고친다.
+// - ⚙ 설정(configured=true): 확인 단계와 같은 탭 편집 화면(토글 + 아코디언)에 프로젝트 이름 칸을 더해 한 화면에서 고친다.
 // 로그인이 필요한 탭(WBS·Jira, 기획서 코멘트 현황)은 여기서 로그인하지 않는다. 각 탭 안에서 한다.
-// 문서 안 형식에서 상태를 읽는 탭(의사결정·구현 진행 현황)은 질문 단계·확인 단계·⚙ 설정에서 템플릿을 내려받게 한다.
-import { buildPayload, buildSteps, hasErrors, initialAnswers, initialDraft, mergePicked, pickStart, questionText, valueOf } from "./onboarding_flow.js";
+// 문서 안 형식에서 상태를 읽는 탭(의사결정·구현 진행 현황)은 입력 항목 아래에서 템플릿을 내려받게 한다.
+import { buildPayload, buildSteps, hasErrors, initialAnswers, initialDraft, mergePicked, pickStart, questionText } from "./onboarding_flow.js";
 
 // 경로 칸은 직접 적지 않는다. 버튼(또는 칸)을 누르면 서버가 Finder 선택 창을 띄우고 고른 절대 경로를 채운다.
 const PATH_KINDS = new Set(["dir", "file", "dirs"]);
@@ -120,48 +120,116 @@ export function openOnboarding(root, config) {
   else openQuestions(root, config);
 }
 
+// 화면을 다시 그린다. keep 이 있으면(토글·펼치기처럼 같은 화면 갱신) 스크롤을 지키고 data-key 가 같은 요소에 초점을 돌려준다.
+function paint(root, view, keep) {
+  const scrolled = root.scrollTop;
+  root.replaceChildren(...view.nodes);
+  if (keep) {
+    root.scrollTop = scrolled;
+    root.querySelector(`[data-key="${keep}"]`)?.focus({ preventScroll: true });
+    return;
+  }
+  root.scrollTop = 0;
+  view.focus?.focus();
+}
+
+// 첫 온보딩 확인 단계와 ⚙ 설정이 함께 쓰는 편집 상태. 탭 켜기·끄기, 입력값, 펼친 탭, 저장 오류를 한곳에 둔다.
+function editorState(config) {
+  return {
+    project: config.project ?? "", answers: initialAnswers(config), draft: initialDraft(config),
+    errors: {}, failure: "", saving: false,
+    open: new Set(),  // 펼친 탭 id
+  };
+}
+
+// 탭 하나의 입력 항목과 템플릿. 입력은 draft 에 바로 담는다. 질문 단계와 탭 편집 아코디언이 함께 쓴다.
+function tabFields(state, tab) {
+  const nodes = [];
+  let first = null;
+  if (!tab.fields.length) nodes.push(el("p", { class: "hint", text: "입력할 항목이 없습니다." }));
+  for (const field of tab.fields) {
+    const { row, input } = fieldRow(`${tab.id}.${field.key}`, field, state.draft[tab.id][field.key], state.errors[tab.id]?.[field.key]);
+    input.addEventListener("input", () => { state.draft[tab.id][field.key] = input.value; });
+    first ??= input;
+    nodes.push(row);
+  }
+  nodes.push(...templateRows(tab));
+  return { nodes, first };
+}
+
+// 탭마다 한 줄: 머리(누르면 입력 항목이 펼쳐짐)와 켬·끔 토글. 켜면 바로 펼친다.
+function tabRow(state, tab, rerender) {
+  const on = state.answers[tab.id] === true;
+  const open = state.open.has(tab.id);
+  const head = button("", () => {
+    if (open) state.open.delete(tab.id);
+    else state.open.add(tab.id);
+    rerender(`${tab.id}-head`);
+  }, { class: "acc-head", "aria-expanded": open ? "true" : "false", "data-key": `${tab.id}-head` });
+  head.append(el("span", { class: "icon", text: tab.icon }), el("span", { class: "label", text: tab.label }),
+    hasErrors(state.errors, tab.id) ? el("span", { class: "error", text: "오류" }) : "",
+    el("span", { class: "chevron", "aria-hidden": "true", text: open ? "▴" : "▾" }));
+  const toggle = button("", () => {
+    state.answers[tab.id] = !on;
+    if (on) state.open.delete(tab.id);
+    else state.open.add(tab.id);
+    rerender(`${tab.id}-switch`);
+  }, { class: "switch", role: "switch", "aria-checked": on ? "true" : "false", "aria-label": `${tab.label} 탭 켜기`, "data-key": `${tab.id}-switch` });
+  toggle.append(el("span", { class: "track", "aria-hidden": "true" }, el("span", { class: "knob" })),
+    el("span", { class: "state", text: on ? "켬" : "끔" }));
+  const body = !open ? ""
+    : el("div", { class: "acc-body" }, ...(on ? tabFields(state, tab).nodes : [el("p", { class: "hint", text: "탭을 켜면 입력 항목을 채울 수 있습니다." })]));
+  return el("li", { class: on ? "on" : "off" }, el("div", { class: "acc-row" }, head, toggle), body);
+}
+
+// 탭 편집 폼: (앞부분) → 탭 아코디언 → 이전·취소 + 저장. 저장 오류는 오류 난 탭을 펼쳐 그 자리에서 고친다.
+// onErrors 는 422 뒤에 불린다(첫 온보딩은 프로젝트 이름 오류면 첫 단계로 돌아간다).
+function tabEditor(state, config, { before = [], back, rerender, onErrors = () => rerender() }) {
+  const none = !config.tabs.some((tab) => state.answers[tab.id] === true);
+  const save = el("button", { class: "primary", type: "submit", disabled: none || state.saving, text: state.saving ? "저장 중…" : "저장" });
+  const form = el("form", { novalidate: true },
+    state.failure ? el("p", { class: "error", text: state.failure }) : "",
+    state.errors._?.tabs ? el("p", { class: "error", text: state.errors._.tabs }) : "",
+    ...before,
+    el("ul", { class: "accordion" }, ...config.tabs.map((tab) => tabRow(state, tab, rerender))),
+    none ? el("p", { class: "error", text: "하나 이상 켜세요." }) : "",
+    el("div", { class: "actions" }, back, save));
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (none || state.saving) return;
+    state.saving = true;
+    state.failure = "";
+    state.errors = {};
+    rerender();
+    try {
+      const errors = await submit(buildPayload(state.project, config.tabs, state.answers, state.draft));
+      if (!errors) return;
+      state.saving = false;
+      state.errors = errors;
+      for (const tab of config.tabs) if (hasErrors(errors, tab.id)) state.open.add(tab.id);
+      onErrors();
+    } catch (err) {
+      state.saving = false;
+      state.failure = "저장 실패: " + err.message;
+      rerender();
+    }
+  });
+  return { form, save };
+}
+
 function openQuestions(root, config) {
   const steps = buildSteps(config.tabs);
   const total = steps.length - 2;
-  const state = {
-    step: 0, project: config.project ?? "", answers: initialAnswers(config), draft: initialDraft(config),
-    errors: {}, failure: "", saving: false,
-    open: new Set(),  // 확인 단계에서 펼친 탭 id
-  };
+  const state = { ...editorState(config), step: 0 };
 
   const go = (step) => { state.step = step; render(); };
 
-  // keep: 같은 화면을 다시 그릴 때(확인 단계 토글·펼치기) 스크롤을 지키고 data-key 가 같은 요소에 초점을 돌려준다.
   function render(keep = null) {
-    const scrolled = root.scrollTop;
     const step = steps[state.step];
-    const view = step.kind === "project" ? projectStep() : step.kind === "question" ? questionStep(step.tab) : confirmStep();
-    root.replaceChildren(...view.nodes);
-    if (keep) {
-      root.scrollTop = scrolled;
-      root.querySelector(`[data-key="${keep}"]`)?.focus({ preventScroll: true });
-      return;
-    }
-    root.scrollTop = 0;
-    view.focus?.focus();
+    paint(root, step.kind === "project" ? projectStep() : step.kind === "question" ? questionStep(step.tab) : confirmStep(), keep);
   }
 
-  // 탭 하나의 입력 항목과 템플릿. 입력은 draft 에 바로 담는다. 질문 단계와 확인 단계 아코디언이 함께 쓴다.
-  function tabFields(tab) {
-    const nodes = [];
-    let first = null;
-    if (!tab.fields.length) nodes.push(el("p", { class: "hint", text: "입력할 항목이 없습니다." }));
-    for (const field of tab.fields) {
-      const { row, input } = fieldRow(`${tab.id}.${field.key}`, field, state.draft[tab.id][field.key], state.errors[tab.id]?.[field.key]);
-      input.addEventListener("input", () => { state.draft[tab.id][field.key] = input.value; });
-      first ??= input;
-      nodes.push(row);
-    }
-    nodes.push(...templateRows(tab));
-    return { nodes, first };
-  }
-
-  // Enter 로 다음 단계: 단계마다 form 하나, submit 이 곧 "다음"(확인 단계는 "저장").
+  // Enter 로 다음 단계: 단계마다 form 하나, submit 이 곧 "다음".
   function stepForm(onSubmit, ...children) {
     const form = el("form", { novalidate: true }, ...children);
     form.addEventListener("submit", (event) => { event.preventDefault(); onSubmit(); });
@@ -206,7 +274,7 @@ function openQuestions(root, config) {
     children.push(el("div", { class: "choices" }, yes, no));
     let first = null;
     if (answer === true) {
-      const fields = tabFields(tab);
+      const fields = tabFields(state, tab);
       first = fields.first;
       children.push(el("fieldset", {}, el("legend", { text: `${tab.icon} ${tab.label} 탭을 켭니다` }), ...fields.nodes));
     }
@@ -219,63 +287,12 @@ function openQuestions(root, config) {
     };
   }
 
-  // 탭마다 한 줄: 머리(누르면 입력 항목이 펼쳐짐)와 켬·끔 토글. 켜면 바로 펼친다.
-  function confirmRow(tab) {
-    const on = state.answers[tab.id] === true;
-    const open = state.open.has(tab.id);
-    const head = button("", () => {
-      if (open) state.open.delete(tab.id);
-      else state.open.add(tab.id);
-      render(`${tab.id}-head`);
-    }, { class: "acc-head", "aria-expanded": open ? "true" : "false", "data-key": `${tab.id}-head` });
-    head.append(el("span", { class: "icon", text: tab.icon }), el("span", { class: "label", text: tab.label }),
-      hasErrors(state.errors, tab.id) ? el("span", { class: "error", text: "오류" }) : "",
-      el("span", { class: "chevron", "aria-hidden": "true", text: open ? "▴" : "▾" }));
-    const toggle = button("", () => {
-      state.answers[tab.id] = !on;
-      if (on) state.open.delete(tab.id);
-      else state.open.add(tab.id);
-      render(`${tab.id}-switch`);
-    }, { class: "switch", role: "switch", "aria-checked": on ? "true" : "false", "aria-label": `${tab.label} 탭 켜기`, "data-key": `${tab.id}-switch` });
-    toggle.append(el("span", { class: "track", "aria-hidden": "true" }, el("span", { class: "knob" })),
-      el("span", { class: "state", text: on ? "켬" : "끔" }));
-    const body = !open ? ""
-      : el("div", { class: "acc-body" }, ...(on ? tabFields(tab).nodes : [el("p", { class: "hint", text: "탭을 켜면 입력 항목을 채울 수 있습니다." })]));
-    return el("li", { class: on ? "on" : "off" }, el("div", { class: "acc-row" }, head, toggle), body);
-  }
-
   function confirmStep() {
-    const list = el("ul", { class: "accordion" }, ...config.tabs.map(confirmRow));
-    const none = !config.tabs.some((tab) => state.answers[tab.id] === true);
-    const save = el("button", { class: "primary", type: "submit", disabled: none || state.saving, text: state.saving ? "저장 중…" : "저장" });
-    const form = stepForm(async () => {
-      if (none || state.saving) return;
-      state.saving = true;
-      state.failure = "";
-      render();
-      try {
-        const errors = await submit(buildPayload(state.project, config.tabs, state.answers, state.draft));
-        if (!errors) return;
-        state.saving = false;
-        state.errors = errors;
-        if (errors._?.project) {
-          go(0);
-          return;
-        }
-        // 오류 난 탭은 확인 화면에서 펼쳐 바로 고친다.
-        for (const tab of config.tabs) if (hasErrors(errors, tab.id)) state.open.add(tab.id);
-        render();
-      } catch (err) {
-        state.saving = false;
-        state.failure = "저장 실패: " + err.message;
-        render();
-      }
-    },
-    state.failure ? el("p", { class: "error", text: state.failure }) : "",
-    state.errors._?.tabs ? el("p", { class: "error", text: state.errors._.tabs }) : "",
-    list,
-    none ? el("p", { class: "error", text: "하나 이상 켜세요." }) : "",
-    el("div", { class: "actions" }, button("이전", () => go(state.step - 1)), save));
+    const { form, save } = tabEditor(state, config, {
+      back: button("이전", () => go(state.step - 1)),
+      rerender: render,
+      onErrors: () => (state.errors._?.project ? go(0) : render()),
+    });
     return {
       nodes: [
         el("h1", { text: "확인" }),
@@ -289,71 +306,32 @@ function openQuestions(root, config) {
   render();
 }
 
+// ⚙ 설정: 첫 온보딩 확인 단계와 같은 탭 편집 화면에 프로젝트 이름 칸을 더한다.
 function openSettings(root, config) {
-  const selected = new Set(config.enabled);
-  showTabs();
+  const state = editorState(config);
 
   function close() {
     root.hidden = true;
     root.replaceChildren();
   }
 
-  function showTabs() {
-    const next = el("button", { class: "primary", type: "button", disabled: selected.size === 0, text: "다음" });
-    const list = el("ul", { class: "tabs" }, ...config.tabs.map((tab) => {
-      const box = el("input", { type: "checkbox", checked: selected.has(tab.id) });
-      box.addEventListener("change", () => {
-        if (box.checked) selected.add(tab.id);
-        else selected.delete(tab.id);
-        next.disabled = selected.size === 0;
-      });
-      return el("li", {}, el("label", {}, box, el("span", { class: "icon", text: tab.icon }), el("span", { text: tab.label })));
-    }));
-    next.addEventListener("click", () => showFields({}));
-    root.replaceChildren(
-      el("h1", { text: "설정" }),
-      el("p", { class: "muted", text: "쓸 탭만 고르면 다음 단계에서 그 탭의 경로만 입력합니다. 로그인이 필요한 탭(WBS·Jira, 기획서 코멘트 현황)은 탭 안에서 로그인하세요." }),
-      list, el("div", { class: "actions" }, button("취소", close), next),
-    );
+  function render(keep = null) {
+    const project = projectRow(state.project, state.errors._?.project);
+    project.input.addEventListener("input", () => { state.project = project.input.value; });
+    const { form } = tabEditor(state, config, {
+      before: [el("fieldset", {}, el("legend", { text: "프로젝트" }), project.row)],
+      back: button("취소", close),
+      rerender: render,
+    });
+    paint(root, {
+      nodes: [
+        el("h1", { text: "설정" }),
+        el("p", { class: "muted", text: "토글로 탭을 켜고 끄고, 탭 이름을 누르면 경로·옵션이 펼쳐집니다. 로그인이 필요한 탭(WBS·Jira, 기획서 코멘트 현황)은 탭 안에서 로그인하세요." }),
+        form,
+      ],
+      focus: project.input,
+    }, keep);
   }
 
-  function showFields(errors) {
-    const chosen = config.tabs.filter((tab) => selected.has(tab.id));
-    const form = el("form", { novalidate: true });
-    if (errors._?.tabs) form.append(el("p", { class: "error", text: errors._.tabs }));
-    const project = projectRow(config.project ?? "", errors._?.project);
-    form.append(el("fieldset", {}, el("legend", { text: "프로젝트" }), project.row));
-    for (const tab of chosen) {
-      const set = el("fieldset", {}, el("legend", { text: `${tab.icon} ${tab.label}` }));
-      if (!tab.fields.length) set.append(el("p", { class: "hint", text: "입력할 항목이 없습니다." }));
-      for (const field of tab.fields) {
-        set.append(fieldRow(`${tab.id}.${field.key}`, field, valueOf(config, tab, field), errors[tab.id]?.[field.key]).row);
-      }
-      set.append(...templateRows(tab));
-      form.append(set);
-    }
-    const save = el("button", { class: "primary", type: "submit", text: "저장" });
-    form.append(el("div", { class: "actions" }, button("이전", showTabs), save));
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const tabs = {};
-      for (const tab of chosen) {
-        tabs[tab.id] = {};
-        for (const field of tab.fields) tabs[tab.id][field.key] = form.elements[`${tab.id}.${field.key}`].value;
-      }
-      const payload = { project: project.input.value, tabs };
-      save.disabled = true;
-      try {
-        const failed = await submit(payload);
-        if (!failed) return;
-        config = { ...config, project: payload.project, values: { ...config.values, ...tabs } };
-        showFields(failed);
-      } catch (err) {
-        save.disabled = false;
-        form.prepend(el("p", { class: "error", text: "저장 실패: " + err.message }));
-      }
-    });
-    root.replaceChildren(el("h1", { text: "경로 입력" }), form);
-    form.querySelector("input, textarea")?.focus();
-  }
+  render();
 }

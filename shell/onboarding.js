@@ -3,7 +3,7 @@
 // - ⚙ 설정(configured=true): 확인 단계와 같은 탭 편집 화면(토글 + 아코디언)에 프로젝트 이름 칸을 더해 한 화면에서 고친다.
 // 로그인이 필요한 탭(WBS·Jira, 기획서 코멘트 현황)은 여기서 로그인하지 않는다. 각 탭 안에서 한다.
 // 문서 안 형식에서 상태를 읽는 탭(의사결정·구현 진행 현황)은 입력 항목 아래에서 템플릿을 내려받게 한다.
-import { buildPayload, buildSteps, hasErrors, initialAnswers, initialDraft, mergePicked, pickStart, questionText } from "./onboarding_flow.js";
+import { buildPayload, buildSteps, hasErrors, initialAnswers, initialDraft, mergePicked, pickStart, questionText, shownFields } from "./onboarding_flow.js";
 
 // 경로 칸은 직접 적지 않는다. 버튼(또는 칸)을 누르면 서버가 Finder 선택 창을 띄우고 고른 절대 경로를 채운다.
 const PATH_KINDS = new Set(["dir", "file", "dirs"]);
@@ -68,9 +68,27 @@ function pathControls(field, input) {
   return { controls: el("div", { class: "pick" }, choose, clear), note };
 }
 
-// 필드 한 줄: 이름, 입력란, 안내, 오류. input 은 값 읽기·이벤트용으로 따로 돌려준다.
+// 고르기 칸(choice): 라디오 묶음. 값이 바뀌면 라디오의 input 이벤트가 묶음까지 올라온다(event.target.value 가 고른 값).
+function choiceRow(name, field, value, error) {
+  const title = field.label + (field.required ? " ✱" : "");
+  const group = el("div", { class: "choice-group", role: "radiogroup", "aria-label": title });
+  let focus = null;
+  for (const [option, text] of field.options) {
+    const radio = el("input", { type: "radio", name, value: option, checked: option === value, "data-key": `${name}=${option}` });
+    if (option === value) focus = radio;
+    group.append(el("label", { class: "option" }, radio, el("span", { text })));
+  }
+  const row = el("div", { class: "field" },
+    el("span", { text: title }), group,
+    field.help ? el("span", { class: "hint", text: field.help }) : "",
+    error ? el("p", { class: "error", text: error }) : "");
+  return { row, input: group, focus };
+}
+
+// 필드 한 줄: 이름, 입력란, 안내, 오류. input 은 input 이벤트를 듣는 곳, focus 는 처음 초점을 줄 곳이다.
 // 경로 칸은 label 대신 div 다. label 이면 안내 글자를 눌러도 선택 창이 뜬다.
 function fieldRow(name, field, value, error) {
+  if (field.kind === "choice") return choiceRow(name, field, value, error);
   const isPath = PATH_KINDS.has(field.kind);
   const title = field.label + (field.required ? " ✱" : "");
   const input = field.kind === "dirs"
@@ -91,7 +109,7 @@ function fieldRow(name, field, value, error) {
     picker ? picker.note : "",
     field.help ? el("span", { class: "hint", text: field.help }) : "",
     error ? el("p", { class: "error", text: error }) : "");
-  return { row, input };
+  return { row, input, focus: input };
 }
 
 const projectRow = (value, error) => fieldRow("project",
@@ -143,14 +161,19 @@ function editorState(config) {
 }
 
 // 탭 하나의 입력 항목과 템플릿. 입력은 draft 에 바로 담는다. 질문 단계와 탭 편집 아코디언이 함께 쓴다.
-function tabFields(state, tab) {
+// 고르기 칸이 바뀌면 다시 그린다. 그 값에 따라 보이는 칸(when)이 달라진다.
+function tabFields(state, tab, rerender) {
   const nodes = [];
   let first = null;
   if (!tab.fields.length) nodes.push(el("p", { class: "hint", text: "입력할 항목이 없습니다." }));
-  for (const field of tab.fields) {
-    const { row, input } = fieldRow(`${tab.id}.${field.key}`, field, state.draft[tab.id][field.key], state.errors[tab.id]?.[field.key]);
-    input.addEventListener("input", () => { state.draft[tab.id][field.key] = input.value; });
-    first ??= input;
+  for (const field of shownFields(tab, state.draft[tab.id])) {
+    const name = `${tab.id}.${field.key}`;
+    const { row, input, focus } = fieldRow(name, field, state.draft[tab.id][field.key], state.errors[tab.id]?.[field.key]);
+    input.addEventListener("input", (event) => {
+      state.draft[tab.id][field.key] = event.target.value;
+      if (field.kind === "choice") rerender(`${name}=${event.target.value}`);
+    });
+    first ??= focus;
     nodes.push(row);
   }
   nodes.push(...templateRows(tab));
@@ -178,7 +201,7 @@ function tabRow(state, tab, rerender) {
   toggle.append(el("span", { class: "track", "aria-hidden": "true" }, el("span", { class: "knob" })),
     el("span", { class: "state", text: on ? "켬" : "끔" }));
   const body = !open ? ""
-    : el("div", { class: "acc-body" }, ...(on ? tabFields(state, tab).nodes : [el("p", { class: "hint", text: "탭을 켜면 입력 항목을 채울 수 있습니다." })]));
+    : el("div", { class: "acc-body" }, ...(on ? tabFields(state, tab, rerender).nodes : [el("p", { class: "hint", text: "탭을 켜면 입력 항목을 채울 수 있습니다." })]));
   return el("li", { class: on ? "on" : "off" }, el("div", { class: "acc-row" }, head, toggle), body);
 }
 
@@ -274,7 +297,7 @@ function openQuestions(root, config) {
     children.push(el("div", { class: "choices" }, yes, no));
     let first = null;
     if (answer === true) {
-      const fields = tabFields(state, tab);
+      const fields = tabFields(state, tab, render);
       first = fields.first;
       children.push(el("fieldset", {}, el("legend", { text: `${tab.icon} ${tab.label} 탭을 켭니다` }), ...fields.nodes));
     }

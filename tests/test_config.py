@@ -137,6 +137,19 @@ class NormalizeTest(unittest.TestCase):
         self.assertEqual(errors, {})
         self.assertEqual(config, {"version": 1, "project": "P", "tabs": {"m": {"folder": str(self.meetings)}}})
 
+    def test_choice_picks_which_conditional_fields_are_required_and_stored(self):
+        tabs = {"w": make_tab("w", [
+            Field("mode", "기준", "choice", default="file", options=(("file", "파일"), ("remote", "원격"))),
+            Field("book", "파일", "file", required=True, when=("mode", "file")),
+            Field("host", "주소", "text", required=True),
+        ])}
+        # 기본값(file)이면 파일이 필수, 원격이면 파일 칸은 보내도 무시하고 저장하지 않는다.
+        self.assertEqual(normalize(tabs, {"tabs": {"w": {"host": "h"}}})[1], {"w": {"book": "필수 항목입니다"}})
+        config, errors = normalize(tabs, {"tabs": {"w": {"mode": "remote", "book": "", "host": "h"}}})
+        self.assertEqual((errors, config["tabs"]), ({}, {"w": {"mode": "remote", "host": "h"}}))
+        self.assertEqual(normalize(tabs, {"tabs": {"w": {"mode": "ftp", "host": "h", "book": str(self.book)}}})[1],
+                         {"w": {"mode": "목록에 있는 값을 고르세요"}})
+
     def test_project_name_is_required_and_must_be_a_safe_folder_name(self):
         ok = {"tabs": {"m": {"folder": str(self.meetings)}}}
         self.assertEqual(normalize_config(self.tabs, ok)[1], {"_": {"project": "프로젝트 이름을 입력하세요"}})

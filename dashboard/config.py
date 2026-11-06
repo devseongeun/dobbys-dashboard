@@ -56,6 +56,9 @@ def _path(text: str) -> str:
 
 
 def _field(field: Field, raw) -> tuple[object, str | None]:
+    if field.kind == "choice":
+        value = str(raw if raw is not None else "").strip() or field.default
+        return (value, None) if value in {option for option, _ in field.options} else (field.default, "목록에 있는 값을 고르세요")
     items = raw if isinstance(raw, list) else [raw]
     if field.kind != "text" and any("\x00" in str(item) for item in items if item is not None):
         return ("" if field.kind != "dirs" else []), "경로 형식이 아닙니다"
@@ -111,6 +114,9 @@ def normalize(tabs: dict[str, Tab], submitted) -> tuple[dict, dict]:
         values = values if isinstance(values, dict) else {}
         settings, field_errors = {}, {}
         for field in tab.fields:
+            # 조건(when)이 맞지 않는 필드는 화면에 없다. 받지도, 필수로 보지도, 저장하지도 않는다.
+            if not field.shown(settings):
+                continue
             settings[field.key], error = _field(field, values.get(field.key))
             if error:
                 field_errors[field.key] = error

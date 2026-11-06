@@ -17,10 +17,15 @@ def no_checks(settings: dict) -> dict[str, str]:
 class Field:
     key: str
     label: str
-    kind: str
+    kind: str  # text · dir · file · dirs · choice
     required: bool = False
     default: str = ""
     help: str = ""
+    options: tuple[tuple[str, str], ...] = ()  # choice 의 (값, 화면 이름). 고르지 않으면 default.
+    when: tuple[str, str] | None = None  # (다른 필드 key, 값): 그 필드가 이 값일 때만 보이고 받고 저장한다.
+
+    def shown(self, settings: dict) -> bool:
+        return self.when is None or settings.get(self.when[0]) == self.when[1]
 
 
 TODAY = "{{TODAY}}"
@@ -53,7 +58,8 @@ class Tab:
             "id": self.id, "label": self.label, "icon": self.icon, "src": f"/{self.id}/",
             "question": self.question, "summary": self.summary,
             "fields": [
-                {"key": f.key, "label": f.label, "kind": f.kind, "required": f.required, "default": f.default, "help": f.help}
+                {"key": f.key, "label": f.label, "kind": f.kind, "required": f.required, "default": f.default, "help": f.help,
+                 "options": [list(option) for option in f.options], "when": list(f.when) if f.when else None}
                 for f in self.fields
             ],
             "templates": [

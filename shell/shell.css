@@ -44,6 +44,9 @@ main iframe[hidden] { display: block; visibility: hidden; pointer-events: none; 
 .onboarding .muted, .onboarding .hint { color: var(--muted); }
 .onboarding fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px 16px; margin: 16px 0; }
 .onboarding legend { font-weight: 600; padding: 0 6px; }
+.onboarding .choice-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.onboarding .choice-group .option { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 7px; cursor: pointer; }
+.onboarding .choice-group .option:has(input:checked) { border-color: var(--acc); color: var(--acc); font-weight: 600; }
 .onboarding .field { display: grid; gap: 4px; margin-top: 12px; }
 .onboarding input[type=text], .onboarding textarea { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: inherit; font: inherit; }
 .onboarding .hint { font-size: 12px; }

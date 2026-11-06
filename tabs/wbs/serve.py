@@ -31,7 +31,8 @@ MIME = {
 WORKBOOK_ERRORS = (OSError, ValueError, KeyError, zipfile.BadZipFile, ET.ParseError)
 
 
-def make_handler(service, source, links, session, drafts_path: Path, domain: str, root: Path = ROOT):
+def make_handler(service, source, links, session, drafts_path: Path, domain: str, mode: str = "wbs", root: Path = ROOT):
+    """mode: 일정 기준(wbs|jira). 화면이 안내 문구·WBS 전용 지표를 고르는 데 쓴다."""
     root = root.resolve()
     js_dir = (root / "js").resolve()
 
@@ -110,7 +111,7 @@ def make_handler(service, source, links, session, drafts_path: Path, domain: str
             if path == "/api/board":
                 payload = service.payload(refresh=query.get("refresh", ["0"])[0] == "1")
                 wbs, _ = self._wbs()
-                self._send_json(200, {**payload, "domain": domain,
+                self._send_json(200, {**payload, "domain": domain, "mode": mode,
                                       "links": match_keys(wbs["tasks"], payload.get("issues") or [], links.load())})
                 return
             if path == "/api/issues":

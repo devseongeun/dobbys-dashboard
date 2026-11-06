@@ -6,7 +6,7 @@
 
 | id | 사이드바 이름 | 필요한 설정 | 로그인 위치 |
 |---|---|---|---|
-| `wbs` | 📅 WBS·Jira | WBS 엑셀 파일, 담당자 이름, Jira 도메인·프로젝트 키(시트 이름은 기본값 있음) | 탭 안(Jira, 선택) |
+| `wbs` | 📅 WBS·Jira | 일정 기준(WBS 엑셀 / Jira), Jira 도메인·프로젝트 키. WBS 기준이면 WBS 엑셀 파일·담당자 이름(시트 이름은 기본값 있음) | 탭 안(Jira, WBS 기준이면 선택) |
 | `assets` | 🗂️ 의사결정 현황 | 의사결정 문서 폴더 | 없음 |
 | `plans` | 🛠️ 구현 진행 현황 | 구현 계획 폴더 | 없음 |
 | `comments` | 💬 기획서 코멘트 현황 | 기획서(TROMBONE) 주소, 체크리스트 저장 폴더(선택) | 탭 안(TROMBONE) |
@@ -71,7 +71,7 @@ cd ~/workspace/dobbys-dashboard && python3 serve.py
 
 ## 탭별 메모
 
-- **WBS**: 엑셀이 기본이고 Jira는 선택이다. API token은 `https://id.atlassian.com/manage-profile/security/api-tokens`에서 만든다. 수동 연결이 먼저고, WBS 제목이 정확히 한 Jira 이슈와만 맞을 때만 자동으로 잇는다.
+- **WBS**: 일정 기준을 고른다. **WBS 엑셀 기준**은 엑셀의 내 행이 기본이고 Jira는 선택이다. 수동 연결이 먼저고, WBS 제목이 정확히 한 Jira 이슈와만 맞을 때만 자동으로 잇는다. **Jira 기준**은 엑셀 없이 탭 안에서 Jira에 로그인해 내 담당 이슈만 본다(엑셀 칸은 숨고 저장하지 않는다). 기준이 없는 옛 config는 WBS 엑셀 기준이다. API token은 `https://id.atlassian.com/manage-profile/security/api-tokens`에서 만든다.
 - **의사결정 현황**: 폴더 이름은 자유다(예: `90-assets`). 폴더 바로 아래 HTML 하나가 문서 한 건이고, 메타데이터는 문서 안에서 읽는다. 템플릿: `tabs/assets/templates/`.
   - 기능 구분·작성일: `<head>`의 `<meta name="feature" content="DB 설계, 배포">`·`<meta name="created" content="2026-09-17">`. 없으면 경고하고 `-`로 둔다.
   - 상태: 상단 문의 현황 표 `<section class="docst" data-doc="open|closed">`와 그 안의 `회신 대상<b>…</b>`·`집계<b>미결 n · 완료 n · 취소됨 n</b>`·`최종 갱신<b>YYYY-MM-DD</b>`. 표가 없으면 참고 문서다.

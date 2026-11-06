@@ -28,12 +28,19 @@ export const initialDraft = (config) => Object.fromEntries(config.tabs.map((tab)
   tab.id, Object.fromEntries(tab.fields.map((field) => [field.key, valueOf(config, tab, field)])),
 ]));
 
-// 예라고 답한 탭만 보낸다. 아니요로 바꾼 탭의 입력값은 draft 에 남아 있어도 보내지 않는다.
+// 조건(when: [다른 필드 key, 값])이 맞는 필드만 보인다. 값이 없으면 그 필드의 기본값으로 본다(서버 config.normalize 와 같은 규칙).
+export function shownFields(tab, values) {
+  const current = (key) => values?.[key] ?? tab.fields.find((field) => field.key === key)?.default ?? "";
+  return tab.fields.filter((field) => !field.when || current(field.when[0]) === field.when[1]);
+}
+
+// 예라고 답한 탭만, 그 탭에서 지금 보이는 필드만 보낸다. 아니요로 바꾼 탭·숨은 필드의 입력값은 draft 에 남아 있어도 보내지 않는다.
 export function buildPayload(project, tabs, answers, draft) {
   const picked = {};
   for (const tab of tabs) {
     if (answers[tab.id] !== true) continue;
-    picked[tab.id] = Object.fromEntries(tab.fields.map((field) => [field.key, draft[tab.id]?.[field.key] ?? field.default ?? ""]));
+    const value = (field) => draft[tab.id]?.[field.key] ?? field.default ?? "";
+    picked[tab.id] = Object.fromEntries(shownFields(tab, draft[tab.id]).map((field) => [field.key, value(field)]));
   }
   return { project, tabs: picked };
 }

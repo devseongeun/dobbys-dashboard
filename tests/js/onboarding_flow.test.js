@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { buildPayload, buildSteps, initialAnswers, initialDraft, mergePicked, pickStart } from "../../shell/onboarding_flow.js";
+import { buildPayload, buildSteps, initialAnswers, initialDraft, mergePicked, pickStart, shownFields } from "../../shell/onboarding_flow.js";
 
 const field = (key, extra = {}) => ({ key, label: key, kind: "text", required: false, default: "", help: "", ...extra });
 const TABS = [
@@ -22,6 +22,19 @@ test("예인 탭만 보내고, 아니요로 바꾼 탭의 남은 입력은 뺀�
 
 test("draft 에 없는 필드는 기본값으로 채운다", () => {
   expect(buildPayload("TRB", TABS, { wbs: true }, {}).tabs.wbs).toEqual({ owner: "", sheet: "WBS" });
+});
+
+test("고르기 값에 따라 조건(when) 필드만 보이고 보낸다. 값이 없으면 기본값 기준", () => {
+  const tab = { id: "wbs", fields: [
+    field("mode", { kind: "choice", default: "wbs", options: [["wbs", "WBS"], ["jira", "Jira"]] }),
+    field("workbook", { kind: "file", when: ["mode", "wbs"] }),
+    field("jira_project"),
+  ] };
+  const keys = (values) => shownFields(tab, values).map((f) => f.key);
+  expect(keys({})).toEqual(["mode", "workbook", "jira_project"]);
+  expect(keys({ mode: "jira" })).toEqual(["mode", "jira_project"]);
+  const draft = { wbs: { mode: "jira", workbook: "/남은/파일.xlsx", jira_project: "IGMU" } };
+  expect(buildPayload("P", [tab], { wbs: true }, draft).tabs.wbs).toEqual({ mode: "jira", jira_project: "IGMU" });
 });
 
 test("첫 실행은 아무 답도 없고, 옛 config 는 켠 탭 예·나머지 아니요", () => {

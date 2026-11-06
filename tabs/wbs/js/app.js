@@ -96,7 +96,7 @@ async function load(refresh) {
     const tasks = wbs.tasks.map((task) => ({ ...task, jira: links[task.id] || null }));
     app.wbs = { ...wbs, tasks };
     app.board = board;
-    app.jira = { domain: board.domain, connected: Boolean(board.connected) };
+    app.jira = { domain: board.domain, connected: Boolean(board.connected), mode: board.mode || "wbs" };
     const domains = domainsOf(tasks);
     if (domains.join("|") !== app.domains.join("|")) {
       app.domains = domains;
@@ -190,7 +190,8 @@ function renderStats(rows) {
   const cells = [
     ["이슈", rows.length + "건", `완료 ${done}건`],
     ["기한 초과", late + "건", "미완료 기준"],
-    ["계획 M/D", md + " M/D", "WBS 매칭 건 합"],
+    // Jira 기준에는 WBS 행이 없어 계획 M/D 가 늘 0 이다.
+    ...(app.jira.mode === "jira" ? [] : [["계획 M/D", md + " M/D", "WBS 매칭 건 합"]]),
     ["누적 기록", hoursText(spent), "Jira timespent"],
     ["동기화", app.board.fetchedAt ? app.board.fetchedAt.slice(11, 16) : "—",
       app.board.stale ? "캐시 표시 중" : "최신"],
@@ -504,7 +505,9 @@ function renderJira() {
   box.classList.remove("hidden");
   box.innerHTML = (app.board.authError
     ? "<b>Jira 인증이 만료됐다. 다시 로그인한다.</b> "
-    : "Jira 연동(선택) — 로그인하면 Jira 일정·상태가 WBS보다 우선한다. ") +
+    : app.jira.mode === "jira"
+      ? "Jira 기준 — 로그인하면 내 담당 이슈로 일정·보드·워크로그를 보여 준다. "
+      : "Jira 연동(선택) — 로그인하면 Jira 일정·상태가 WBS보다 우선한다. ") +
     '<input id="jemail" type="email" placeholder="Jira 이메일" autocomplete="username">' +
     '<input id="jtoken" type="password" placeholder="API token" autocomplete="current-password">' +
     '<button class="f" id="jiralogin">로그인</button> ' +

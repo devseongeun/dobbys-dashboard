@@ -1,5 +1,6 @@
 import { openOnboarding } from "./onboarding.js";
 import { frameUrl, parseShellHash, pickInitial, toShellHash } from "./route.js";
+import { CHECK_INTERVAL_MS, RESTART_POLL_MS, RESTART_TIMEOUT_MS, confirmMessage, restarted, updateLink, versionLine } from "./update_flow.js";
 
 const LAST_KEY = "dobbys-dashboard:last";
 const COLLAPSED_KEY = "dobbys-dashboard:collapsed";
@@ -7,6 +8,9 @@ const nav = document.getElementById("nav");
 const stage = document.getElementById("stage");
 const collapse = document.getElementById("collapse");
 const onboarding = document.getElementById("onboarding");
+const updateLinkEl = document.getElementById("update");
+const versionEl = document.getElementById("version");
+let updateState = null;
 const frames = new Map();
 let items = [];
 let config = null;
@@ -136,6 +140,70 @@ document.getElementById("settings").addEventListener("click", (event) => {
   if (config) openOnboarding(onboarding, config);
 });
 
+// 업데이트: 서버가 origin 과 비교한 결과를 사이드바에 알리고, 누르면 pull 뒤 서버가 같은 PID 로 다시 뜬다.
+async function fetchUpdate(refresh) {
+  const r = await fetch("/_dashboard/update" + (refresh ? "?refresh=1" : ""));
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+function renderUpdate(state) {
+  updateState = state;
+  const link = updateLink(state);
+  updateLinkEl.hidden = !link.visible;
+  updateLinkEl.querySelector(".label").textContent = link.label;
+  updateLinkEl.title = link.title;
+  updateLinkEl.classList.toggle("blocked", Boolean(link.blocked));
+  versionEl.textContent = versionLine(state);
+  versionEl.title = state && state.checkedAt ? `마지막 확인 ${state.checkedAt}` : "";
+}
+
+function checkUpdate(refresh) {
+  if (document.visibilityState === "hidden") return;
+  fetchUpdate(refresh).then(renderUpdate).catch(() => { /* 업데이트 표시는 보조 기능이다 */ });
+}
+
+function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+async function waitForRestart(before) {
+  const deadline = Date.now() + RESTART_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await sleep(RESTART_POLL_MS);
+    try {
+      if (restarted(before, await fetchUpdate(false))) return true;
+    } catch { /* 재시작 중 */ }
+  }
+  return false;
+}
+
+updateLinkEl.addEventListener("click", async (event) => {
+  event.preventDefault();
+  const state = updateState;
+  if (!state || !state.behind) return;
+  const link = updateLink(state);
+  if (link.blocked) { window.alert(link.blocked); return; }
+  if (!window.confirm(confirmMessage(state))) return;
+  updateLinkEl.classList.add("busy");
+  updateLinkEl.querySelector(".label").textContent = "업데이트 중…";
+  try {
+    const r = await fetch("/_dashboard/update", { method: "POST" });
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+    if (!body.updated) { renderUpdate(await fetchUpdate(true)); return; }
+    updateLinkEl.querySelector(".label").textContent = "다시 시작 중…";
+    if (await waitForRestart(state)) { location.reload(); return; }
+    window.alert("서버가 60초 안에 다시 뜨지 않았다. launchctl kickstart -k gui/$(id -u)/com.dobbys-dashboard 로 띄운다.");
+  } catch (error) {
+    window.alert(`업데이트 실패: ${error.message}`);
+  } finally {
+    updateLinkEl.classList.remove("busy");
+    renderUpdate(updateState);
+  }
+});
+
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkUpdate(false); });
+setInterval(() => checkUpdate(true), CHECK_INTERVAL_MS);
+
 async function boot() {
   try {
     config = await fetch("/_dashboard/config").then((r) => r.json());
@@ -152,6 +220,7 @@ async function boot() {
   items = config.tabs.filter((tab) => config.enabled.includes(tab.id));
   buildNav();
   markStatus();
+  checkUpdate(false);
   const start = parseShellHash(location.hash, items);
   const first = pickInitial(location.hash, recall(LAST_KEY), items);
   if (first) show(first, start.id ? start.inner : "");

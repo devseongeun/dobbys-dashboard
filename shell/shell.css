@@ -23,8 +23,16 @@ main { position: relative; flex: 1; min-width: 0; height: 100vh; }
 main iframe { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; }
 /* display:none 이면 iframe 스크롤 위치가 사라진다. 레이아웃은 유지하고 보이지만 않게 한다. */
 main iframe[hidden] { display: block; visibility: hidden; pointer-events: none; }
-.settings { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; color: var(--muted); text-decoration: none; white-space: nowrap; }
-.settings:hover { background: var(--hover); color: var(--fg); }
+.update, .settings { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; color: var(--muted); text-decoration: none; white-space: nowrap; }
+.update { margin-top: auto; color: var(--acc); font-weight: 600; }
+.update[hidden] { display: none; }
+.update[hidden] + .settings { margin-top: auto; }
+.update.busy { pointer-events: none; opacity: .6; }
+.update.blocked { color: var(--warn); }
+.update:hover, .settings:hover { background: var(--hover); }
+.settings:hover { color: var(--fg); }
+.version { padding: 0 10px 4px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.version:empty { display: none; }
 .onboarding { position: fixed; inset: 0; z-index: 10; overflow: auto; padding: 48px 24px; background: var(--bg); }
 .onboarding[hidden] { display: none; }
 .onboarding > * { max-width: 720px; margin-left: auto; margin-right: auto; }

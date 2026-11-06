@@ -40,6 +40,14 @@ cd ~/workspace/dobbys-dashboard && python3 serve.py
 
 상주 실행 중에는 macOS 개인정보 보호(TCC) 때문에 Python이 `~/Downloads`·`~/Desktop`의 파일을 읽지 못하고, 권한 창을 기다리며 멈춘다(WBS 엑셀이 `~/Downloads`에 있으면 WBS 탭이 응답하지 않는다). WBS 엑셀과 설정한 폴더는 모두 `~/Downloads`·`~/Desktop` 밖(예: Vault 안)에 둔다. macOS가 "Python … 폴더의 파일에 접근하려고 합니다"를 띄우면 허용하거나, 파일을 옮기고 ⚙ 설정에서 경로를 고친 뒤 `launchctl kickstart -k gui/$(id -u)/com.dobbys-dashboard`로 재시작한다.
 
+## 업데이트
+
+사이드바 맨 아래에 현재 커밋(`10ac8f8 · 2026-11-06`)이 보인다. 서버가 열 때와 30분마다 `origin`을 받아 비교하고, 새 커밋이 있으면 그 위에 **⬆ 업데이트 N건**이 뜬다(마우스를 올리면 커밋 제목). 누르면 `git pull --ff-only` 뒤 서버가 같은 자리에서 다시 떠서 화면이 새로고침된다. launchd 상주든 터미널에서 `python3 serve.py`로 띄웠든 같다.
+
+- 자동 업데이트를 거절하는 경우: 커밋하지 않은 로컬 변경이 있거나, 로컬 커밋이 `origin`보다 앞서 있을 때. 링크가 붉게 바뀌고 이유를 보여 준다. 정리한 뒤 다시 누른다.
+- `git clone`이 아니라 압축으로 받았으면 git 저장소가 아니라 표시 자체가 없다.
+- 터미널에서: `scripts/update.sh`. 같은 일을 하고, launchd 등록이 있으면 재시작까지 한다.
+
 ## 프로젝트 바꾸기
 
 버전이 올라가거나 다른 프로젝트를 맡으면 ⚙ 설정에서 프로젝트 이름과 경로(WBS 엑셀, 폴더들, Jira 프로젝트 키, 기획서 주소)를 고치고 저장한다. 저장하면 탭을 다시 띄우므로 재시작은 필요 없다.

@@ -2,7 +2,7 @@
 
 - `/{id}/...` 는 prefix 를 떼고 그 탭 handler 로 넘긴다. 보안 검사는 각 탭 handler 가 한다.
 - `/{id}` 는 `/{id}/` 로 301. 앱 안의 상대 경로가 맞게 풀리게 한다.
-- 그 밖의 경로는 셸(정적 파일·상태·설정 API)이다. Host 가 로컬이 아니면 403(DNS 리바인딩 방어).
+- 그 밖의 경로는 셸(정적 파일·상태·설정·업데이트 API)이다. Host 가 로컬이 아니면 403(DNS 리바인딩 방어).
 - 켜진 탭은 dashboard 가 들고 있다. 설정을 저장하면 dashboard 가 마운트 표를 바꾼다.
 """
 from __future__ import annotations
@@ -22,6 +22,7 @@ SHELL_FILES = {
     "/shell.css": "shell.css",
     "/shell.js": "shell.js",
     "/route.js": "route.js",
+    "/update_flow.js": "update_flow.js",
     "/onboarding.js": "onboarding.js",
     "/onboarding_flow.js": "onboarding_flow.js",
 }
@@ -36,6 +37,7 @@ COPIED = (
     "requestline", "command", "request_version", "headers", "close_connection",
 )
 CONFIG_API = "/_dashboard/config"
+UPDATE_API = "/_dashboard/update"
 MAX_CONFIG_BYTES = 64 * 1024
 
 
@@ -54,8 +56,9 @@ def host_allowed(raw: str) -> bool:
         return False
 
 
-def make_dispatcher(dashboard, shell_root: Path):
-    """dashboard: mount(id) -> Mount|None, status() -> list, describe() -> dict, apply(payload) -> (status, body)."""
+def make_dispatcher(dashboard, shell_root: Path, updater=None):
+    """dashboard: mount(id) -> Mount|None, status() -> list, describe() -> dict, apply(payload) -> (status, body).
+    updater: check(refresh) -> dict, apply() -> (status, body). None 이면 업데이트 API 는 404."""
     shell_root = shell_root.resolve()
 
     class DispatchHandler(BaseHTTPRequestHandler):
@@ -138,6 +141,16 @@ def make_dispatcher(dashboard, shell_root: Path):
         def _shell(self, path: str):
             if path == CONFIG_API and self.command == "POST":
                 self._save_config()
+                return
+            if path == UPDATE_API and updater is not None:
+                if self.command == "POST":
+                    status, body = updater.apply()
+                    self._json(status, body)
+                elif self.command in ("GET", "HEAD"):
+                    refresh = "refresh=1" in (urlsplit(self.path).query or "")
+                    self._json(200, updater.check(refresh=refresh))
+                else:
+                    self._json(405, {"error": "method not allowed"})
                 return
             if self.command not in ("GET", "HEAD"):
                 self._json(405, {"error": "method not allowed"})

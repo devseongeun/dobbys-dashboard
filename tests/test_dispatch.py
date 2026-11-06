@@ -55,6 +55,20 @@ class StubDashboard:
         return self.reply
 
 
+class StubUpdater:
+    def __init__(self):
+        self.checks = []
+        self.applied = 0
+
+    def check(self, refresh=False):
+        self.checks.append(refresh)
+        return {"ok": True, "behind": 1 if refresh else 0}
+
+    def apply(self):
+        self.applied += 1
+        return 409, {"error": "로컬 변경"}
+
+
 class DispatchTest(unittest.TestCase):
     def setUp(self):
         shell = Path(self.enterContext(tempfile.TemporaryDirectory()))
@@ -66,7 +80,8 @@ class DispatchTest(unittest.TestCase):
             Mount("boom", BoomHandler),
             Mount("broken", None, "ConfigError: 설정 없음"),
         ])
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_dispatcher(self.dashboard, shell))
+        self.updater = StubUpdater()
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_dispatcher(self.dashboard, shell, self.updater))
         self.server.daemon_threads = True
         self.port = self.server.server_address[1]
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
@@ -161,6 +176,32 @@ class DispatchTest(unittest.TestCase):
                                        headers={"Content-Type": "application/json"})
         self.assertEqual((status, json.loads(body)), (422, {"errors": {"a": {"folder": "필수 항목이다"}}}))
         self.assertEqual(self.dashboard.applied, [{"tabs": {"a": {}}}])
+
+    def test_update_get_passes_refresh_flag_and_rejects_foreign_host(self):
+        status, _, body = self.request("GET", "/_dashboard/update")
+        self.assertEqual((status, json.loads(body)["behind"]), (200, 0))
+        status, _, body = self.request("GET", "/_dashboard/update?refresh=1")
+        self.assertEqual((status, json.loads(body)["behind"]), (200, 1))
+        self.assertEqual(self.updater.checks, [False, True])
+        self.assertEqual(self.request("GET", "/_dashboard/update", host="evil.example.com")[0], 403)
+
+    def test_update_post_returns_updater_verdict_and_other_methods_405(self):
+        status, _, body = self.request("POST", "/_dashboard/update")
+        self.assertEqual((status, json.loads(body)), (409, {"error": "로컬 변경"}))
+        self.assertEqual(self.updater.applied, 1)
+        self.assertEqual(self.request("PUT", "/_dashboard/update")[0], 405)
+        self.assertEqual(self.request("POST", "/_dashboard/update", host="evil.example.com")[0], 403)
+        self.assertEqual(self.updater.applied, 1)
+
+    def test_update_api_is_404_without_updater(self):
+        shell = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        server = ThreadingHTTPServer(("127.0.0.1", 0), make_dispatcher(self.dashboard, shell))
+        self.addCleanup(server.server_close)
+        conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+        self.addCleanup(conn.close)
+        threading.Thread(target=server.handle_request, daemon=True).start()
+        conn.request("GET", "/_dashboard/update", headers={"Connection": "close"})
+        self.assertEqual(conn.getresponse().status, 404)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 - 설정(~/.config/dobbys-dashboard/config.json)이 없으면 셸이 온보딩을 띄운다.
 - `/` 는 사이드바 셸, `/<탭 id>/` 는 켜진 탭 handler 로 넘긴다(dashboard/dispatch.py).
 - 탭 하나가 초기화에 실패해도 나머지는 뜬다. 실패한 prefix 는 503, 원인은 /_dashboard/status.
+- 셸 사이드바가 /_dashboard/update 로 origin 과 비교해 업데이트를 알리고, 버튼으로 pull 뒤 같은 PID 에서 다시 뜬다.
 
 사용:
   python3 serve.py              # http://127.0.0.1:8787/
@@ -22,6 +23,7 @@ from dashboard.app import Dashboard  # noqa: E402
 from dashboard.config import ConfigStore  # noqa: E402
 from dashboard.dispatch import make_dispatcher  # noqa: E402
 from dashboard.paths import CONFIG_PATH, PORT, REPO_ROOT, STATE_ROOT  # noqa: E402
+from dashboard.update import Updater  # noqa: E402
 from tabs import ALL_TABS  # noqa: E402
 
 
@@ -53,7 +55,7 @@ def open_servers(port: int, handler) -> list[ThreadingHTTPServer]:
 def main() -> int:
     dashboard = Dashboard(ALL_TABS, ConfigStore(CONFIG_PATH), STATE_ROOT)
     try:
-        servers = open_servers(PORT, make_dispatcher(dashboard, REPO_ROOT / "shell"))
+        servers = open_servers(PORT, make_dispatcher(dashboard, REPO_ROOT / "shell", Updater(REPO_ROOT)))
     except OSError as error:
         print(f"{PORT} 포트를 열지 못했다: {error}", file=sys.stderr)
         return 1

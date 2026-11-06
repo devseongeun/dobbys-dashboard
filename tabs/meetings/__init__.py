@@ -38,5 +38,5 @@ TAB = Tab(
            help="회의 Canvas를 둘 Vault 안 폴더(예: …/TRB_400/70-meetings). Canvas 파일 카드는 이 Vault 기준으로 엽니다."),),
     build=_build, validate=_validate,
     question="회의 때 볼 자료를 한곳에 모아 두고 싶어요",
-    summary="Vault 파일과 웹 링크를 회의별 블록에 담아 둡니다.",
+    summary="Vault 파일과 웹 링크를 회의별 블록에 담아 둬요. Obsidian Vault가 필요하고, Obsidian Canvas에서도 열 수 있어요.",
 )

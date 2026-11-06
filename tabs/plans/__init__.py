@@ -25,8 +25,8 @@ def _build(settings: dict, state_dir: Path) -> Mount:
 TAB = Tab(
     "plans", "구현 진행 현황", "🛠️",
     (Field("folder", "구현 계획 폴더", "dir", required=True,
-           help="계획 md가 쌓이는 폴더. 파일명은 'YYYY-MM-DD 제목.md', frontmatter status·progress·feature를 읽습니다. 예: …/10-plans"),),
+           help="계획 md가 쌓이는 폴더. 파일명은 'YYYY-MM-DD 제목.md', frontmatter status, progress, feature를 읽습니다. 예: …/10-plans"),),
     build=_build,
     question="구현이 어디까지 진행됐는지 한눈에 보고 싶어요",
-    summary="구현 계획 md의 상태·진행률·체크 항목을 기능별로 모아 봅니다.",
+    summary="구현 계획 md의 상태, 진행률, 체크 항목을 기능별로 모아 봐요.",
 )

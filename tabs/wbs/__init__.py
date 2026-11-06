@@ -61,6 +61,6 @@ TAB = Tab(
         Field("jira_project", "Jira 프로젝트 키", "text", required=True, help="예: PROJ"),
     ),
     build=_build, validate=_validate,
-    question="내 담당 기능 WBS가 궁금해요",
-    summary="WBS 엑셀에서 내 담당 행을 모아 일정을 보고, Jira 이슈와 이어 진행 상황을 함께 봅니다.",
+    question="WBS와 Jira 일정을 한눈에 보고 관리하고 싶어요",
+    summary="WBS 엑셀에서 내 담당 기능을 모아 일정을 만들어요. Jira 티켓과 연결하면 Jira 일정과 진행 상황으로 보여 줘요.",
 )

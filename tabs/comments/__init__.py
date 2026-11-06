@@ -35,5 +35,5 @@ TAB = Tab(
     ),
     build=_build, validate=_validate,
     question="웹 기획서에 답글이 달렸는지 궁금해요",
-    summary="기획서(TROMBONE)에 남긴 코멘트의 답글 현황을 봅니다. 사내망(VPN)이 필요합니다.",
+    summary="기획서(TROMBONE)에 남긴 코멘트의 답글 현황을 봐요. 사내망(VPN)이 필요해요.",
 )

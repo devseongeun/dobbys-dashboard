@@ -99,7 +99,7 @@ function openQuestions(root, config) {
       row, el("div", { class: "actions" }, el("button", { class: "primary", type: "submit", text: "다음" })));
     return {
       nodes: [
-        el("h1", { text: "도비의 대시보드 시작하기" }),
+        el("h1", { text: "어떤 프로젝트의 대시보드를 만들까요?" }),
         el("p", { class: "muted", text: "필요한 탭만 활성화할게요." }),
         form,
       ],

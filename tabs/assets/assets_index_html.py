@@ -97,8 +97,19 @@ def groups(rows: list) -> list:
     return out
 
 
-def doc_link(item: dict) -> str:
-    return f'<a href="{esc(quote(item["file"]))}">{esc(item["title"])}</a>'
+def copy_path_button(folder: Path, filename: str) -> str:
+    path = esc(str(folder.absolute() / filename))
+    return (
+        f'<button type="button" class="f copy-path" data-copy-path="{path}" title="{path}"'
+        f' aria-label="{esc(filename)} 시스템 루트 경로 복사" aria-live="polite">경로 복사</button>'
+    )
+
+
+def doc_link(item: dict, folder: Path) -> str:
+    return (
+        f'<span class="doc-entry"><a href="{esc(quote(item["file"]))}">{esc(item["title"])}</a>'
+        f'{copy_path_button(folder, item["file"])}</span>'
+    )
 
 
 def row_attrs(item: dict) -> str:
@@ -119,9 +130,9 @@ def progress(item: dict) -> str:
     )
 
 
-def status_table(rows: list) -> str:
+def status_table(rows: list, folder: Path) -> str:
     body = "".join(
-        f'<tr {row_attrs(item)}><td class="doc">{doc_link(item)}</td><td class="who">{esc(item["who"])}</td>'
+        f'<tr {row_attrs(item)}><td class="doc">{doc_link(item, folder)}</td><td class="who">{esc(item["who"])}</td>'
         f'<td>{progress(item)}</td><td class="mono">{esc(item["updated"])}</td><td class="mono">{esc(item["date"])}</td></tr>'
         for item in rows
     )
@@ -131,19 +142,19 @@ def status_table(rows: list) -> str:
     )
 
 
-def ref_table(rows: list) -> str:
+def ref_table(rows: list, folder: Path) -> str:
     body = "".join(
-        f'<tr {row_attrs(item)}><td class="doc">{doc_link(item)}</td><td class="mono">{esc(item["date"])}</td></tr>'
+        f'<tr {row_attrs(item)}><td class="doc">{doc_link(item, folder)}</td><td class="mono">{esc(item["date"])}</td></tr>'
         for item in rows
     )
     return f'<table class="ref-t"><thead><tr><th>문서</th><th class="mono">작성일</th></tr></thead><tbody>{body}</tbody></table>'
 
 
-def section_html(key: str, section: dict) -> str:
+def section_html(key: str, section: dict, folder: Path) -> str:
     table = ref_table if key == "ref" else status_table
     note = f'<p class="dim note">{esc(section["note"])}</p>' if section["note"] else ""
     body = "".join(
-        f'<section class="grp"><div class="mhd"><b>{esc(name)}</b><span class="sub">{len(rows)}건</span></div>{table(rows)}</section>'
+        f'<section class="grp"><div class="mhd"><b>{esc(name)}</b><span class="sub">{len(rows)}건</span></div>{table(rows, folder)}</section>'
         for name, rows in groups(section["rows"])
     )
     # 검색 중에는 세 구역을 함께 보여 주므로 구역 제목(.ph)이 필요하다. 탭 보기에서는 숨긴다.
@@ -183,7 +194,7 @@ def render_html(md: str, folder: Path) -> str:
     chips = '<button class="f" data-feature="">전체</button>' + "".join(
         f'<button class="f" data-feature="{esc(f)}">{esc(f)}</button>' for f in features
     )
-    panels = "".join(section_html(k, s) for k, s in ordered)
+    panels = "".join(section_html(k, s, folder) for k, s in ordered)
     return fill(PAGE, {
         "TITLE": f"의사결정 현황 · {folder.name}",
         "SEARCH": "전체 검색 (진행 중·종결·참고)",
@@ -251,6 +262,10 @@ tbody tr:hover td{background:var(--card2)}
 td.mono,th.mono{font:11px ui-monospace,Menlo,monospace;color:var(--muted);white-space:nowrap}
 td.doc a{color:var(--ink);text-decoration:none}
 td.doc a:hover{color:var(--acc);text-decoration:underline}
+.doc-entry{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.doc-entry a{min-width:0;overflow-wrap:anywhere}
+button.copy-path{flex:none;padding:2px 8px;font-size:11px;white-space:nowrap}
+button.copy-path:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 td.who{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .prog{display:flex;align-items:center;gap:7px}
 .pbar{display:flex;flex:1;gap:1px;height:7px;border-radius:99px;overflow:hidden;background:var(--line)}
@@ -395,6 +410,22 @@ SCRIPT = """(() => {
   $("q").value = state.q;
   $("q").addEventListener("input", () => { state.q = $("q").value; render(); });
   window.addEventListener("hashchange", () => { Object.assign(state, parse()); $("q").value = state.q; render(); });
+
+  document.querySelectorAll("[data-copy-path]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        await navigator.clipboard.writeText(button.dataset.copyPath);
+        button.textContent = "복사됨";
+      } catch {
+        button.textContent = "복사 실패";
+      }
+      setTimeout(() => {
+        button.textContent = "경로 복사";
+        button.disabled = false;
+      }, 1600);
+    });
+  });
 
   if (served) {
     $("refresh").addEventListener("click", async () => {

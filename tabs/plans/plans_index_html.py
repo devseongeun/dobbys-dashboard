@@ -8,7 +8,7 @@
 from pathlib import Path
 from urllib.parse import quote
 
-from ..assets.assets_index_html import PAGE, SCRIPT, SERVE_URL, STYLE, esc, fill, groups, stat
+from ..assets.assets_index_html import PAGE, SCRIPT, SERVE_URL, STYLE, copy_path_button, esc, fill, groups, stat
 
 
 def html_name(folder: Path) -> str:
@@ -27,8 +27,11 @@ td.ck.warn{color:#fb923c}
 """
 
 
-def plan_link(plan: dict) -> str:
-    return f'<a href="view.html#{esc(quote(plan["file"]))}">{esc(plan["title"])}</a>'
+def plan_link(plan: dict, folder: Path) -> str:
+    return (
+        f'<span class="doc-entry"><a href="view.html#{esc(quote(plan["file"]))}">{esc(plan["title"])}</a>'
+        f'{copy_path_button(folder, plan["file"])}</span>'
+    )
 
 
 def row_attrs(plan: dict) -> str:
@@ -53,9 +56,9 @@ def check(plan: dict) -> str:
     return f'<td class="ck">{text}</td>'
 
 
-def plan_table(rows: list) -> str:
+def plan_table(rows: list, folder: Path) -> str:
     body = "".join(
-        f'<tr {row_attrs(p)}><td class="doc">{plan_link(p)}</td>'
+        f'<tr {row_attrs(p)}><td class="doc">{plan_link(p, folder)}</td>'
         f'<td><span class="badge {p["state"]}">{esc(dict(TABS)[p["state"]])}</span></td>'
         f'<td>{progress(p)}</td>{check(p)}<td class="mono">{esc(p["updated"])}</td><td class="mono">{esc(p["date"])}</td></tr>'
         for p in rows
@@ -66,19 +69,19 @@ def plan_table(rows: list) -> str:
     )
 
 
-def ref_table(rows: list) -> str:
+def ref_table(rows: list, folder: Path) -> str:
     body = "".join(
-        f'<tr {row_attrs(p)}><td class="doc">{plan_link(p)}</td><td class="mono">{esc(p["date"])}</td></tr>'
+        f'<tr {row_attrs(p)}><td class="doc">{plan_link(p, folder)}</td><td class="mono">{esc(p["date"])}</td></tr>'
         for p in rows
     )
     return f'<table class="ref-t"><thead><tr><th>계획</th><th class="mono">작성일</th></tr></thead><tbody>{body}</tbody></table>'
 
 
-def panel(key: str, label: str, rows: list) -> str:
+def panel(key: str, label: str, rows: list, folder: Path) -> str:
     table = ref_table if key == "ref" else plan_table
     note = '<p class="dim note">frontmatter <code>status</code>가 없는 인계·메모·매핑 문서다.</p>' if key == "ref" else ""
     body = "".join(
-        f'<section class="grp"><div class="mhd"><b>{esc(name)}</b><span class="sub">{len(items)}건</span></div>{table(items)}</section>'
+        f'<section class="grp"><div class="mhd"><b>{esc(name)}</b><span class="sub">{len(items)}건</span></div>{table(items, folder)}</section>'
         for name, items in groups(rows)
     )
     return (
@@ -109,7 +112,7 @@ def render_html(sections: dict, folder: Path) -> str:
     chips = '<button class="f" data-feature="">전체</button>' + "".join(
         f'<button class="f" data-feature="{esc(f)}">{esc(f)}</button>' for f in features
     )
-    panels = "".join(panel(key, label, sections[key]) for key, label in TABS)
+    panels = "".join(panel(key, label, sections[key], folder) for key, label in TABS)
     return fill(PAGE, {
         "TITLE": f"구현 진행 현황 · {folder.name}",
         "SEARCH": "전체 검색 (할 일·진행 중·완료·참고)",

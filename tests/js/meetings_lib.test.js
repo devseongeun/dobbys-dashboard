@@ -1,8 +1,16 @@
 import { expect, test } from "bun:test";
 import {
-  dropIndex, fileInfo, fileUrl, isWebUrl, linkLabel, obsidianToMarkdown, obsidianUri, parseState, stripFrontmatter, toHash,
-  todayIso,
+  dropIndex, fileInfo, fileUrl, filterMeetings, isWebUrl, linkLabel, obsidianToMarkdown, obsidianUri, parseState,
+  stripFrontmatter, toHash, todayIso,
 } from "../../tabs/meetings/meetings_lib.js";
+
+test("업무 검색은 낱말마다 날짜·이름 어딘가에 있으면 남기고, 빈 검색어는 전체다", () => {
+  const list = [{ date: "2026-11-05", title: "인프라 Kickoff" }, { date: "2026-10-01", title: "인프라 점검" }, { date: "", title: "메모" }];
+  expect(filterMeetings(list, "  ")).toBe(list);
+  expect(filterMeetings(list, "인프라 kickoff").map((m) => m.title)).toEqual(["인프라 Kickoff"]);
+  expect(filterMeetings(list, "2026-10 인프라").map((m) => m.title)).toEqual(["인프라 점검"]);
+  expect(filterMeetings(list, "없는말")).toEqual([]);
+});
 
 test("해시는 한글·공백·&·#·+ 가 든 회의 id·경로를 그대로 왕복한다", () => {
   const state = { meeting: "2026-11-05 라이프사이클팀 & 협조", file: "90-assets/TRB #1 + 조사.md" };

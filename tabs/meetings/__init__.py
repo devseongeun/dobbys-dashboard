@@ -1,4 +1,4 @@
-"""회의 자료 탭. Vault 안 회의 폴더의 Obsidian Canvas(.canvas) 하나가 회의 한 건이다."""
+"""회의 자료 탭. Vault 안 회의 폴더의 Obsidian Canvas(.canvas) 하나가 업무 하나, 그 안의 그룹 하나가 회의 하나다."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -35,8 +35,8 @@ def _build(settings: dict, state_dir: Path) -> Mount:
 TAB = Tab(
     "meetings", "회의 자료", "📎",
     (Field("folder", "회의 폴더", "dir", required=True,
-           help="회의 Canvas를 둘 Vault 안 폴더(예: …/TRB_400/70-meetings). Canvas 파일 카드는 이 Vault 기준으로 엽니다."),),
+           help="업무별 Canvas를 둘 Vault 안 폴더(예: …/TRB_400/70-meetings). Canvas 파일 카드는 이 Vault 기준으로 엽니다."),),
     build=_build, validate=_validate,
     question="회의 때 볼 자료를 한곳에 모아 두고 싶어요",
-    summary="Vault 파일과 웹 링크를 회의별 블록에 담아 둬요. Obsidian Vault가 필요하고, Obsidian Canvas에서도 열 수 있어요.",
+    summary="업무마다 회의 블록을 두고 Vault 파일과 웹 링크를 담아 둬요. Obsidian Vault가 필요하고, Obsidian Canvas에서도 열 수 있어요.",
 )

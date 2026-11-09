@@ -79,3 +79,13 @@ export function todayIso(now = new Date()) {
   const pad = (n) => String(n).padStart(2, "0");
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
+
+// 업무 목록 검색. 공백으로 나눈 낱말이 모두 "날짜 이름"에 들어 있는 업무만 남긴다(대소문자 무시). 빈 검색어는 전체.
+export function filterMeetings(meetings, query) {
+  const words = String(query || "").toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return meetings;
+  return meetings.filter((m) => {
+    const text = `${m.date || ""} ${m.title || ""}`.toLowerCase();
+    return words.every((word) => text.includes(word));
+  });
+}

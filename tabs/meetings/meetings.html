@@ -10,22 +10,30 @@
 <body>
 <aside class="side">
   <section class="list">
-    <header><b>회의 자료</b><span class="tools"><button class="btn" id="new-meeting" type="button">+ 회의</button><button class="btn" id="reload" type="button" title="Canvas·트리 다시 읽기">⟳</button></span></header>
+    <header><b>회의 자료</b><span class="tools"><button class="btn" id="new-meeting" type="button">+ 업무</button><button class="btn" id="reload" type="button" title="Canvas·트리 다시 읽기">⟳</button></span></header>
+    <div class="list-search"><input id="meeting-search" type="search" placeholder="업무 검색" autocomplete="off"></div>
     <div id="new-meeting-slot"></div>
     <ul id="meetings"></ul>
   </section>
   <section class="tree">
     <header><b>Vault</b><input id="tree-search" type="search" placeholder="파일 검색" autocomplete="off"></header>
     <div class="tree-body" id="tree"></div>
-    <p class="hint">파일을 누르면 오른쪽에서 미리 본다. 미리보기의 <b>+ 담기</b>나 블록으로 끌어다 놓기로 담는다. 블록 = Canvas 그룹.</p>
+    <p class="hint">파일을 누르면 오른쪽에서 미리 본다. 미리보기의 <b>+ 담기</b>나 회의 블록으로 끌어다 놓기로 담는다. 업무 = Canvas 파일, 회의 = Canvas 그룹.</p>
   </section>
 </aside>
 <main class="board">
   <header class="bar">
-    <h1 id="title" title="눌러서 회의 이름 바꾸기">회의를 고른다</h1>
+    <h1 id="title" title="눌러서 업무 이름 바꾸기">업무를 고른다</h1>
     <span class="notice" id="notice" hidden></span>
-    <button class="btn" id="new-block" type="button" hidden>+ 블록</button>
-    <a class="btn" id="open-canvas" hidden>Obsidian에서 열기 ↗</a>
+    <button class="btn" id="new-block" type="button" hidden>+ 회의</button>
+    <span class="menu-wrap">
+      <button class="btn" id="meeting-menu" type="button" aria-haspopup="menu" aria-expanded="false" title="업무 메뉴" hidden>⋯</button>
+      <div class="menu" id="meeting-menu-list" role="menu" hidden>
+        <button type="button" role="menuitem" data-act="rename">업무 이름 바꾸기</button>
+        <a role="menuitem" id="open-canvas">Obsidian에서 열기 ↗</a>
+        <button type="button" role="menuitem" data-act="delete" class="danger">업무 삭제</button>
+      </div>
+    </span>
   </header>
   <div id="new-block-slot"></div>
   <div class="blocks" id="blocks"></div>

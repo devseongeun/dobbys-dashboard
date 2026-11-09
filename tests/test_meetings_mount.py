@@ -132,6 +132,22 @@ class MeetingsMountTest(unittest.TestCase):
         self.assertEqual(self.post_json("/meetings/api/meetings", {"date": "2026-11-21", "title": "바뀐 회의"})[0], 409)
         self.assertEqual(self.post_json("/meetings/api/meetings", {"date": "x", "title": "y"})[0], 400)
 
+    def test_meetings_delete_returns_list_and_broken_canvas_is_deletable(self):
+        status, body = self.post_json("/meetings/api/meetings/" + MEETING + "/delete", {"version": "stale"})
+        self.assertEqual(status, 409)
+        status, body = self.post_json("/meetings/api/meetings/" + MEETING + "/delete", {"version": self.meeting()["version"]})
+        self.assertEqual((status, [m["id"] for m in body["meetings"]]), (200, ["2026-11-01 깨짐"]))
+        broken = "/meetings/api/meetings/" + urllib.parse.quote("2026-11-01 깨짐")
+        status, _, raw = self.request("GET", broken)
+        version = json.loads(raw)["version"]
+        self.assertEqual(status, 422)
+        status, body = self.post_json(broken + "/delete", {"version": version})
+        self.assertEqual((status, body["meetings"]), (200, []))
+
+    def test_meetings_block_delete_returns_detail(self):
+        status, detail = self.post_json("/meetings/api/meetings/" + MEETING + "/blocks/g/delete", {"version": self.meeting()["version"]})
+        self.assertEqual((status, [b["label"] for b in detail["blocks"]]), (200, ["미분류"]))
+
     def test_meetings_write_guards(self):
         version = self.meeting()["version"]
         url = "/meetings/api/meetings/" + MEETING + "/blocks"

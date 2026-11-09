@@ -1,8 +1,9 @@
-// 회의 자료 화면. 목록·Vault 트리·블록 카드·편집·미리보기를 그린다. 순수 함수는 meetings_lib.js 에 있다.
+// 회의 자료 화면. 업무(Canvas) 목록·Vault 트리·회의 블록(Canvas 그룹) 카드·편집·미리보기를 그린다. 순수 함수는 meetings_lib.js 에 있다.
+// 코드의 meeting 은 업무 Canvas, block 은 그 업무의 회의다(서버 API 이름을 따른다).
 // 쓰기는 POST + X-Meetings-Editor 헤더 + 상세의 version. 409 면 알리고 다시 읽는다.
 import {
-  dropIndex, fileInfo, fileUrl, isWebUrl, linkLabel, obsidianToMarkdown, obsidianUri, parseState, stripFrontmatter, toHash,
-  todayIso,
+  dropIndex, fileInfo, fileUrl, filterMeetings, isWebUrl, linkLabel, obsidianToMarkdown, obsidianUri, parseState,
+  stripFrontmatter, toHash, todayIso,
 } from "./meetings_lib.js";
 
 const $ = (id) => document.getElementById(id);
@@ -12,11 +13,12 @@ const UNGROUPED = "_ungrouped";
 const EDITOR = { "Content-Type": "application/json", "X-Meetings-Editor": "1" };
 let meetings = [];
 let listError = "";
+let listQuery = "";
 let loaded = { id: null, promise: null };
 let current = null;
 let renderedId = null;
 let previewKey = ""; // 미리보기가 지금 보여 주는 것. 같으면 본문을 다시 그리지 않는다.
-let addTarget = ""; // 미리보기 "담기"에서 마지막으로 고른 블록 id.
+let addTarget = ""; // 미리보기 "담기"에서 마지막으로 고른 회의 블록 id.
 let seq = 0;
 let busy = false;
 let dragging = null; // { kind: "item", id, block } | { kind: "file", path }
@@ -36,7 +38,11 @@ function el(tag, cls, text) {
 async function getJson(url) {
   const res = await fetch(url, { cache: "no-store" });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || "HTTP " + res.status);
+  if (!res.ok) {
+    const err = new Error(body.error || "HTTP " + res.status);
+    err.version = body.version; // 깨진 Canvas(422)도 version 을 준다. 업무 삭제에 쓴다.
+    throw err;
+  }
   return body;
 }
 
@@ -74,7 +80,7 @@ async function refreshList() {
   catch (err) { meetings = []; listError = err.message; }
 }
 
-// 해시의 회의가 목록에 없으면(처음 열었거나 바깥에서 이름이 바뀜) 첫 회의로. 보고 있던 파일은 그대로 둔다.
+// 해시의 업무가 목록에 없으면(처음 열었거나 바깥에서 이름이 바뀜) 첫 업무로. 보고 있던 파일은 그대로 둔다.
 function ensureSelection() {
   const { meeting, file } = parseState(location.hash);
   if (!meetings.length || meetings.some((m) => m.id === meeting)) return;
@@ -85,7 +91,7 @@ function loadDetail(id) {
   if (loaded.id !== id) {
     const promise = id
       ? getJson("api/meetings/" + encodeURIComponent(id)).then(
-        (detail) => ({ detail, error: "" }), (err) => ({ detail: null, error: err.message }))
+        (detail) => ({ detail, error: "" }), (err) => ({ detail: null, error: err.message, version: err.version }))
       : Promise.resolve({ detail: null, error: "" });
     loaded = { id, promise };
   }
@@ -94,10 +100,12 @@ function loadDetail(id) {
 
 // ── 쓰기 ──────────────────────────────────────────────
 
+// 쓰기 하나를 실행하고 바뀐 상세로 다시 그린다. 성공하면 그 상세를, 실패하면 null 을 돌려준다.
 async function run(request) {
-  if (busy) return;
+  if (busy) return null;
   busy = true;
   document.body.classList.add("busy");
+  let result = null;
   try {
     const detail = await request();
     loaded = { id: detail.id, promise: Promise.resolve({ detail, error: "" }) };
@@ -105,6 +113,7 @@ async function run(request) {
       await refreshList();
       history.replaceState(null, "", toHash({ meeting: detail.id, file: parseState(location.hash).file }));
     }
+    result = detail;
   } catch (err) {
     notice(err.status === 409 && err.version ? "Canvas가 바뀌어 다시 불러왔다. 한 번 더 해 본다." : "저장하지 못했다: " + err.message);
     loaded = { id: null, promise: null };
@@ -115,6 +124,7 @@ async function run(request) {
     document.body.classList.remove("busy");
   }
   await sync();
+  return result;
 }
 
 function write(path, body = {}) {
@@ -124,9 +134,10 @@ function write(path, body = {}) {
   return run(() => postJson(url, { ...body, version }));
 }
 
-// 한 줄 입력 폼. Enter 저장, Esc·취소는 onCancel.
+// 한 줄 입력 폼. Enter 저장, Esc·취소는 onCancel. focus 가 참인 칸(없으면 첫 칸)에 초점을 둔다.
 function inlineForm(fields, submitLabel, onSubmit, onCancel) {
   const form = el("form", "inline");
+  let first = null;
   for (const field of fields) {
     const input = el("input");
     input.name = field.name;
@@ -134,6 +145,7 @@ function inlineForm(fields, submitLabel, onSubmit, onCancel) {
     input.value = field.value || "";
     input.placeholder = field.placeholder || "";
     input.required = Boolean(field.required);
+    if (field.focus || !first) first = input;
     form.append(input);
   }
   const ok = el("button", "btn", submitLabel);
@@ -144,46 +156,110 @@ function inlineForm(fields, submitLabel, onSubmit, onCancel) {
   form.append(ok, cancel);
   form.addEventListener("submit", (e) => { e.preventDefault(); onSubmit(Object.fromEntries(new FormData(form))); });
   form.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); onCancel(); } });
-  setTimeout(() => form.querySelector("input")?.focus(), 0);
+  setTimeout(() => first?.focus(), 0);
   return form;
 }
 
+// 새 업무(Canvas)를 만들면 그 업무로 옮기고 첫 회의 입력 칸을 바로 연다.
 function startNewMeeting() {
   const slot = $("new-meeting-slot");
   if (slot.firstChild) return;
   const close = () => slot.replaceChildren();
-  slot.append(inlineForm([
-    { name: "date", type: "date", value: todayIso() },
-    { name: "title", placeholder: "회의 이름", required: true },
-  ], "만들기", ({ date, title }) => { close(); run(() => postJson("api/meetings", { date, title })); }, close));
+  slot.append(inlineForm([{ name: "title", placeholder: "업무 이름(예: 외부 연계, 외부 결재)", required: true }], "만들기",
+    async ({ title }) => {
+      close();
+      const created = await run(() => postJson("api/meetings", { title }));
+      if (created && current?.id === created.id) startNewBlock();
+    }, close));
 }
 
+// 업무 이름은 파일명 그대로(예전 파일의 앞 날짜 포함) 한 칸에서 고친다.
 function startRenameMeeting() {
   if (!current || busy) return;
   const title = $("title");
   if (title.hidden) return;
   const close = () => { form.remove(); title.hidden = false; };
-  const form = inlineForm([
-    { name: "date", type: "date", value: current.date },
-    { name: "title", value: current.title, placeholder: "회의 이름", required: true },
-  ], "저장", ({ date, title: name }) => { close(); write("/rename", { date, title: name }); }, close);
+  const form = inlineForm([{ name: "title", value: current.id, placeholder: "업무 이름", required: true }], "저장",
+    ({ title: name }) => { close(); write("/rename", { title: name }); }, close);
   form.dataset.meeting = current.id;
   title.hidden = true;
   title.after(form);
 }
 
+// 회의 블록 이름은 `YYYY-MM-DD 회의 이름`. 날짜가 블록 정렬(최신순) 기준이다.
 function startNewBlock() {
   const slot = $("new-block-slot");
   if (!current || slot.firstChild) return;
   const close = () => slot.replaceChildren();
-  slot.append(inlineForm([{ name: "label", placeholder: "블록 이름", required: true }], "만들기",
-    ({ label }) => { close(); write("/blocks", { label }); }, close));
+  slot.append(inlineForm([
+    { name: "date", type: "date", value: todayIso() },
+    { name: "name", placeholder: "회의 이름(예: 인프라 업무 협조 요청)", required: true, focus: true },
+  ], "만들기", ({ date, name }) => { close(); write("/blocks", { label: `${date} ${name.trim()}`.trim() }); }, close));
+}
+
+// 업무 지우기. Canvas는 회의 폴더의 .trash/ 로 옮겨지고 담긴 파일은 그대로다. 보고 있던 업무면 목록의 다음 업무로 옮긴다.
+async function deleteMeeting(id) {
+  if (busy) return;
+  const { detail, error, version } = await loadDetail(id);
+  const entry = meetings.find((m) => m.id === id);
+  const name = entry ? entry.id : id;
+  // 깨진 Canvas는 상세 대신 오류와 version 만 온다. 그래도 지울 수 있다.
+  if (!detail && !version) { notice("업무를 불러오지 못해 지울 수 없다: " + error); return; }
+  const cards = detail ? detail.blocks.reduce((sum, block) => sum + block.items.length, 0) : 0;
+  const keep = detail ? `담긴 카드 ${cards}개의 파일은 지우지 않는다.` : "Canvas를 읽지 못해 담긴 카드를 셀 수 없지만 파일은 지우지 않는다.";
+  const meetingsIn = detail ? `회의 ${detail.blocks.filter((b) => b.id !== UNGROUPED).length}개와 ` : "";
+  if (!confirm(`"${name}" 업무를 지운다(${meetingsIn}Canvas 전체).\n\nCanvas는 회의 폴더의 .trash/ 로 옮겨 두고, ${keep}`)) return;
+  const index = meetings.findIndex((m) => m.id === id);
+  busy = true;
+  document.body.classList.add("busy");
+  try {
+    meetings = (await postJson(`api/meetings/${encodeURIComponent(id)}/delete`, { version: detail?.version ?? version })).meetings;
+    listError = "";
+    loaded = { id: null, promise: null };
+    const state = parseState(location.hash);
+    if (state.meeting === id) {
+      const next = meetings[Math.min(index, meetings.length - 1)];
+      history.replaceState(null, "", toHash({ meeting: next?.id ?? "", file: state.file }) || location.pathname);
+    }
+    notice(`"${name}" 업무를 지웠다. 되살리려면 회의 폴더 .trash/ 안의 파일을 다시 옮긴다.`);
+  } catch (err) {
+    notice(err.status === 409 ? "Canvas가 바뀌어 지우지 않았다. 다시 확인하고 지운다." : "지우지 못했다: " + err.message);
+    loaded = { id: null, promise: null };
+    await refreshList();
+    ensureSelection();
+  } finally {
+    busy = false;
+    document.body.classList.remove("busy");
+  }
+  await sync();
+}
+
+// 목록의 ✎: 그 업무로 옮긴 뒤 이름 입력 칸을 연다.
+async function renameFromList(id) {
+  if (busy) return;
+  if (parseState(location.hash).meeting !== id) {
+    history.replaceState(null, "", toHash({ meeting: id, file: parseState(location.hash).file }));
+    await sync();
+  }
+  startRenameMeeting();
+}
+
+function closeMenu() {
+  $("meeting-menu-list").hidden = true;
+  $("meeting-menu").setAttribute("aria-expanded", "false");
+}
+
+function deleteBlock(block) {
+  if (busy) return;
+  const cards = block.items.length;
+  const rest = cards ? `안의 카드 ${cards}개는 지우지 않고 바깥 블록이나 미분류로 남는다.` : "빈 회의다.";
+  if (confirm(`"${block.label}" 회의 블록을 지운다. ${rest}`)) write(`/blocks/${encodeURIComponent(block.id)}/delete`);
 }
 
 function startRenameBlock(heading, block) {
   if (busy) return;
   const close = () => { form.remove(); heading.hidden = false; };
-  const form = inlineForm([{ name: "label", value: block.label, required: true }], "저장",
+  const form = inlineForm([{ name: "label", value: block.label, placeholder: "YYYY-MM-DD 회의 이름", required: true }], "저장",
     ({ label }) => { close(); write(`/blocks/${encodeURIComponent(block.id)}/rename`, { label }); }, close);
   heading.hidden = true;
   heading.after(form);
@@ -261,18 +337,35 @@ function wireDrop(card, list, block) {
 
 // ── 목록·보드 ─────────────────────────────────────────
 
+function listAction(text, title, onClick) {
+  const button = el("button", "act", text);
+  button.type = "button";
+  button.title = title;
+  button.setAttribute("aria-label", title);
+  button.addEventListener("click", (e) => { e.preventDefault(); onClick(); });
+  return button;
+}
+
 function renderList(state) {
   const ul = $("meetings");
   ul.replaceChildren();
   if (listError) { ul.append(el("li", "msg err", "목록을 불러오지 못했다: " + listError)); return; }
-  if (!meetings.length) { ul.append(el("li", "msg", "회의가 없다. + 회의로 만든다.")); return; }
-  for (const meeting of meetings) {
+  if (!meetings.length) { ul.append(el("li", "msg", "업무가 없다. + 업무로 만든다.")); return; }
+  const shown = filterMeetings(meetings, listQuery);
+  if (!shown.length) { ul.append(el("li", "msg", "검색과 맞는 업무가 없다.")); return; }
+  for (const meeting of shown) {
     const a = el("a");
     a.href = toHash({ meeting: meeting.id });
-    a.append(el("span", "date", meeting.date || "날짜 없음"), el("span", "name", meeting.title));
+    if (meeting.date) a.append(el("span", "date", meeting.date));
+    a.append(el("span", "name", meeting.title));
     if (meeting.error) { a.append(el("span", "badge err", "오류")); a.title = meeting.error; }
+    const actions = el("span", "acts");
+    actions.append(
+      listAction("✎", "업무 이름 바꾸기", () => renameFromList(meeting.id)),
+      listAction("🗑", "업무 삭제", () => deleteMeeting(meeting.id)),
+    );
     const li = el("li", meeting.id === state.meeting ? "on" : "");
-    li.append(a);
+    li.append(a, actions);
     ul.append(li);
   }
 }
@@ -339,14 +432,21 @@ function renderBlock(detail, block, state) {
   if (color) card.style.setProperty("--block", color);
   const editable = Boolean(block.id) && block.id !== UNGROUPED;
   const heading = el("h2", editable ? "editable" : "", block.label);
+  const head = el("div", "block-head");
+  head.append(heading);
   if (editable) {
-    heading.title = "눌러서 블록 이름 바꾸기";
+    heading.title = "눌러서 회의 이름 바꾸기";
     heading.addEventListener("click", () => startRenameBlock(heading, block));
+    const del = el("button", "del", "✕");
+    del.type = "button";
+    del.title = "회의 블록 삭제(안의 카드·파일은 그대로)";
+    del.addEventListener("click", () => deleteBlock(block));
+    head.append(del);
   }
   const list = el("ul", "items");
   if (!block.items.length) list.append(el("li", "msg", "비어 있음 — 파일을 여기로 끌어다 놓는다"));
   for (const item of block.items) list.append(renderItem(detail, item, state, block));
-  card.append(heading, list);
+  card.append(head, list);
   if (editable) card.append(addLinkButton(block));
   wireDrop(card, list, block);
   return card;
@@ -354,37 +454,36 @@ function renderBlock(detail, block, state) {
 
 function renderBoard(state, { detail, error }) {
   const box = $("blocks");
-  const open = $("open-canvas");
   box.replaceChildren();
-  // 다른 회의로 바뀌면 이전 회의의 이름 바꾸기·새 블록 폼을 닫는다.
+  // 다른 업무로 바뀌면 이전 업무의 이름 바꾸기·새 회의 폼과 업무 메뉴를 닫는다.
   for (const form of document.querySelectorAll(".bar > form.inline[data-meeting]")) {
     if (form.dataset.meeting !== detail?.id) form.remove();
   }
   if (!document.querySelector(".bar > form.inline[data-meeting]")) $("title").hidden = false;
-  if (renderedId !== (detail?.id ?? null)) $("new-block-slot").replaceChildren();
+  if (renderedId !== (detail?.id ?? null)) { $("new-block-slot").replaceChildren(); closeMenu(); }
   renderedId = detail?.id ?? null;
-  open.hidden = true;
+  $("meeting-menu").hidden = true;
   $("new-block").hidden = true;
   current = detail;
   if (!detail) {
-    $("title").textContent = state.meeting || "회의를 고른다";
+    $("title").textContent = state.meeting || "업무를 고른다";
     document.title = "회의 자료";
     if (state.meeting) box.append(el("p", "msg err", "불러오지 못했다: " + error));
     return;
   }
   $("title").textContent = (detail.date ? detail.date + " · " : "") + detail.title;
   document.title = detail.title + " · 회의 자료";
-  open.href = obsidianUri(detail.vault, detail.canvasPath);
-  open.hidden = false;
+  $("open-canvas").href = obsidianUri(detail.vault, detail.canvasPath);
+  $("meeting-menu").hidden = false;
   $("new-block").hidden = false;
   if (!detail.blocks.length) {
-    box.append(el("p", "msg", "블록이 없다. + 블록으로 만들거나, Obsidian에서 이 Canvas에 그룹을 만든다."));
+    box.append(el("p", "msg", "회의가 없다. + 회의로 만들거나, Obsidian에서 이 Canvas에 그룹을 만든다."));
     return;
   }
   for (const block of detail.blocks) box.append(renderBlock(detail, block, state));
 }
 
-// 미리보기 헤더의 "블록에 담기". 이미 이 회의에 담긴 파일이면 담긴 블록 이름만 보인다.
+// 미리보기 헤더의 "회의에 담기". 이미 이 업무에 담긴 파일이면 담긴 회의 이름만 보인다.
 function renderAddControl(detail, path) {
   const box = $("preview-add");
   box.replaceChildren();
@@ -392,9 +491,9 @@ function renderAddControl(detail, path) {
   const holders = detail.blocks.filter((b) => b.items.some((i) => i.kind === "file" && i.path === path));
   if (holders.length) { box.append(el("span", "badge", "담김 · " + holders.map((b) => b.label).join(", "))); return; }
   const targets = detail.blocks.filter((b) => b.id && b.id !== UNGROUPED);
-  if (!targets.length) { box.append(el("span", "badge", "+ 블록을 먼저 만든다")); return; }
+  if (!targets.length) { box.append(el("span", "badge", "+ 회의를 먼저 만든다")); return; }
   const select = el("select");
-  select.title = "담을 블록";
+  select.title = "담을 회의";
   for (const block of targets) {
     const option = el("option", "", block.label);
     option.value = block.id;
@@ -411,7 +510,7 @@ function renderAddControl(detail, path) {
   box.append(select, button);
 }
 
-// 오른쪽 미리보기. 회의에 담긴 파일이면 그 카드 정보로, 아니면(Vault 트리에서 고른 파일) 경로로 판단한다.
+// 오른쪽 미리보기. 업무에 담긴 파일이면 그 카드 정보로, 아니면(Vault 트리에서 고른 파일) 경로로 판단한다.
 async function renderPreview(state, detail) {
   const path = state.file;
   document.body.classList.toggle("previewing", Boolean(path));
@@ -425,7 +524,7 @@ async function renderPreview(state, detail) {
   if (detail) $("preview-open").href = obsidianUri(detail.vault, path);
   $("preview-close").href = toHash({ meeting: state.meeting }) || "#";
   renderAddControl(detail, path);
-  // 같은 파일을 보여 주고 있으면 본문을 그대로 둔다(편집·회의 전환에도 PDF 쪽·스크롤이 유지되게).
+  // 같은 파일을 보여 주고 있으면 본문을 그대로 둔다(편집·업무 전환에도 PDF 쪽·스크롤이 유지되게).
   const key = `${path}\n${view.missing}\n${view.preview}`;
   if (key === previewKey) return;
   previewKey = key;
@@ -557,6 +656,24 @@ async function renderTree() {
 $("title").addEventListener("click", startRenameMeeting);
 $("new-block").addEventListener("click", startNewBlock);
 $("new-meeting").addEventListener("click", startNewMeeting);
+$("meeting-search").addEventListener("input", (e) => {
+  listQuery = e.target.value;
+  renderList(parseState(location.hash));
+});
+$("meeting-menu").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const menu = $("meeting-menu-list");
+  menu.hidden = !menu.hidden;
+  $("meeting-menu").setAttribute("aria-expanded", String(!menu.hidden));
+});
+$("meeting-menu-list").addEventListener("click", (e) => {
+  const act = e.target.closest("[data-act]")?.dataset.act;
+  closeMenu();
+  if (act === "rename") startRenameMeeting();
+  else if (act === "delete" && current) deleteMeeting(current.id);
+});
+document.addEventListener("click", (e) => { if (!e.target.closest(".menu-wrap")) closeMenu(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
 $("reload").addEventListener("click", async () => {
   loaded = { id: null, promise: null };
   tree.dirs.clear();

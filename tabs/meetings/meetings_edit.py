@@ -1,9 +1,11 @@
 """회의 자료 Canvas 쓰기(대시보드 편집). HTTP와 무관하다(meetings_serve.py 가 쓴다).
+meeting = 업무 Canvas, block = 그 업무의 회의(Canvas 그룹). meetings_canvas.py 참고.
 
 - 모든 쓰기는 요청 version 이 meetings_canvas.version_of 와 같을 때만 한다(아니면 409). 잠금 하나로 직렬화한다.
 - 저장은 같은 폴더 임시 파일 → os.replace. 읽은 JSON 객체를 고쳐 쓰므로 모르는 필드·id·edges 가 남는다. 탭 들여쓰기.
-- 블록 안 순서만 바꿀 때는 `.order/<회의 id>.json`만 쓰고 Canvas 배치는 그대로 둔다.
-- 카드 추가·다른 블록 이동은 대상 그룹 맨 아래에 놓고, 모자라면 그룹을 늘리고 그 아래 노드를 민다.
+- 블록 안 순서만 바꿀 때는 `.order/<업무 id>.json`만 쓰고 Canvas 배치는 그대로 둔다.
+- 카드 추가·다른 회의 블록 이동은 대상 그룹 맨 아래에 놓고, 모자라면 그룹을 늘리고 그 아래 노드를 민다.
+- 업무 삭제는 Canvas·순서 파일을 회의 폴더의 `.trash/<지운 시각>/`으로 옮긴다. 담긴 Vault 파일은 지우지 않는다.
 설계: docs/superpowers/specs/2026-11-04-meetings-canvas-design.md
 """
 from __future__ import annotations
@@ -30,6 +32,7 @@ MAX_NAME = 120
 MAX_URL = 2048
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+TRASH_DIR = ".trash"
 
 
 class EditError(Exception):
@@ -51,9 +54,9 @@ def clean_name(value, what: str = "이름") -> str:
 
 
 def meeting_id_for(date, title) -> str:
-    name = clean_name(title, "회의 이름")
+    name = clean_name(title, "업무 이름")
     if any(ch in name for ch in "/\\:") or name.startswith("."):
-        raise EditError(400, "회의 이름에는 / \\ : 와 맨 앞 . 을 쓸 수 없다")
+        raise EditError(400, "업무 이름에는 / \\ : 와 맨 앞 . 을 쓸 수 없다")
     if date is None:
         date = ""
     if not isinstance(date, str):
@@ -90,15 +93,20 @@ def _atomic_write(path: Path, text: str) -> None:
         raise
 
 
-def _load(root: Path, meeting_id: str, version) -> tuple[Path, dict, dict]:
+def _checked(root: Path, meeting_id: str, version) -> Path:
     path = mc.resolve_meeting(root, meeting_id)
     if path is None:
-        raise EditError(404, "회의 Canvas가 없다")
+        raise EditError(404, "업무 Canvas가 없다")
     if not isinstance(version, str):
         raise EditError(400, "version 이 없다")
     current = mc.version_of(path)
     if version != current:
         raise EditError(409, "Canvas가 바뀌었다. 다시 불러온다", current)
+    return path
+
+
+def _load(root: Path, meeting_id: str, version) -> tuple[Path, dict, dict]:
+    path = _checked(root, meeting_id, version)
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -131,10 +139,10 @@ def _find(data: dict, node_id, what: str = "항목") -> dict:
 
 def _target_group(data: dict, block_id) -> dict:
     if block_id == mc.UNGROUPED_ID:
-        raise EditError(400, "미분류 블록에는 추가·이동할 수 없다")
-    group = _find(data, block_id, "블록")
+        raise EditError(400, "미분류에는 추가·이동할 수 없다")
+    group = _find(data, block_id, "회의 블록")
     if group.get("type") != "group":
-        raise EditError(404, "블록이 없다")
+        raise EditError(404, "회의 블록이 없다")
     if mc.node_rect(group) is None:
         raise EditError(422, "그룹 좌표가 잘못됐다")
     return group
@@ -229,7 +237,7 @@ def create_meeting(root: Path, date, title) -> str:
     with LOCK:
         path = root / f"{meeting_id}.canvas"
         if path.exists():
-            raise EditError(409, "같은 이름의 회의가 있다")
+            raise EditError(409, "같은 이름의 업무가 있다")
         _atomic_write(path, _dump({"nodes": [], "edges": []}))
     return meeting_id
 
@@ -242,7 +250,7 @@ def rename_meeting(root: Path, meeting_id: str, date, title, version) -> str:
             return new_id
         target = path.parent / f"{new_id}.canvas"
         if target.exists() and not target.samefile(path):
-            raise EditError(409, "같은 이름의 회의가 있다")
+            raise EditError(409, "같은 이름의 업무가 있다")
         old_order = mc.order_path(path)
         os.replace(path, target)
         if old_order.exists():
@@ -250,8 +258,30 @@ def rename_meeting(root: Path, meeting_id: str, date, title, version) -> str:
     return new_id
 
 
+def delete_meeting(root: Path, meeting_id: str, version) -> Path:
+    """업무 Canvas와 순서 파일을 `.trash/<지운 시각>/` 아래 같은 배치(`<id>.canvas`, `.order/<id>.json`)로 옮긴다.
+    되살리려면 그 폴더 안의 것을 회의 폴더로 다시 옮긴다. 담긴 파일은 건드리지 않는다. 옮긴 폴더를 돌려준다.
+    JSON이 깨진 Canvas도 지울 수 있다(내용을 읽지 않는다)."""
+    with LOCK:
+        path = _checked(root, meeting_id, version)
+        stamp = datetime.datetime.now().strftime("%Y-%m-%d %H%M%S")
+        trash = path.parent / TRASH_DIR / stamp
+        suffix = 2
+        while trash.exists():
+            trash = path.parent / TRASH_DIR / f"{stamp}-{suffix}"
+            suffix += 1
+        trash.mkdir(parents=True)
+        order = mc.order_path(path)
+        moved = trash / path.name
+        os.replace(path, moved)
+        if order.exists():
+            mc.order_path(moved).parent.mkdir()
+            os.replace(order, mc.order_path(moved))
+    return trash
+
+
 def add_block(root: Path, meeting_id: str, label, version) -> str:
-    name = clean_name(label, "블록 이름")
+    name = clean_name(label, "회의 이름")
     with LOCK:
         path, data, _ = _load(root, meeting_id, version)
         rects = [r for n in _nodes(data) if (r := mc.node_rect(n)) is not None]
@@ -265,14 +295,33 @@ def add_block(root: Path, meeting_id: str, label, version) -> str:
 
 
 def rename_block(root: Path, meeting_id: str, block_id, label, version) -> str:
-    name = clean_name(label, "블록 이름")
+    name = clean_name(label, "회의 이름")
     with LOCK:
         path, data, _ = _load(root, meeting_id, version)
-        group = _find(data, block_id, "블록")
+        group = _find(data, block_id, "회의 블록")
         if group.get("type") != "group":
-            raise EditError(404, "블록이 없다")
+            raise EditError(404, "회의 블록이 없다")
         group["label"] = name
         _save(path, data)
+    return meeting_id
+
+
+def delete_block(root: Path, meeting_id: str, block_id, version) -> str:
+    """회의 블록(그룹 노드)만 지운다. 안의 카드는 그 자리에 남아 바깥 블록이나 미분류로 보인다."""
+    with LOCK:
+        path, data, order = _load(root, meeting_id, version)
+        if block_id == mc.UNGROUPED_ID:
+            raise EditError(400, "미분류는 지울 수 없다")
+        group = _find(data, block_id, "회의 블록")
+        if group.get("type") != "group":
+            raise EditError(404, "회의 블록이 없다")
+        data["nodes"] = [n for n in data["nodes"] if n is not group]
+        edges = data.get("edges")
+        if isinstance(edges, list):
+            data["edges"] = [e for e in edges
+                             if not (isinstance(e, dict) and block_id in (e.get("fromNode"), e.get("toNode")))]
+        order.pop(block_id, None)
+        _save(path, data, order)
     return meeting_id
 
 

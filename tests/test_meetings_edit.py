@@ -239,5 +239,63 @@ class MoveDeleteTest(Fixture):
         self.assertStatus(404, me.delete_item, self.root, "회의", "nope", self.v("회의"))
 
 
+class DeleteMeetingTest(Fixture):
+    def test_moves_canvas_and_order_to_trash_and_leaves_vault_files(self):
+        self.canvas("2026-11-05 A", {"nodes": [node("group", 0, 0, 1000, 1000, label="g"),
+                                               node("file", 10, 10, file="docs/협조 요청.md"), node("text", 10, 100, text="t")]})
+        me.move_item(self.root, self.vault, "2026-11-05 A", "text-10-100", "group-0-0", 0, self.v("2026-11-05 A"))
+        canvas_bytes = (self.root / "2026-11-05 A.canvas").read_bytes()
+        trash = me.delete_meeting(self.root, "2026-11-05 A", self.v("2026-11-05 A"))
+        self.assertEqual(trash.parent, self.root / ".trash")
+        self.assertEqual(mc.list_meetings(self.root), [])
+        self.assertTrue((self.vault / "docs" / "협조 요청.md").is_file())
+        self.assertFalse(mc.order_path(self.root / "2026-11-05 A.canvas").exists())
+        # 휴지통 안의 것을 회의 폴더로 그대로 옮기면 순서까지 되살아난다.
+        self.assertEqual((trash / "2026-11-05 A.canvas").read_bytes(), canvas_bytes)
+        (trash / "2026-11-05 A.canvas").replace(self.root / "2026-11-05 A.canvas")
+        (trash / ".order" / "2026-11-05 A.json").replace(mc.order_path(self.root / "2026-11-05 A.canvas"))
+        self.assertEqual(self.labels("2026-11-05 A"), [("g", ["t", "docs/협조 요청.md"])])
+
+    def test_same_second_deletes_get_separate_folders(self):
+        self.canvas("A", {"nodes": []})
+        first = me.delete_meeting(self.root, "A", self.v("A"))
+        self.canvas("A", {"nodes": []})
+        second = me.delete_meeting(self.root, "A", self.v("A"))
+        self.assertNotEqual(first, second)
+        self.assertTrue((first / "A.canvas").is_file() and (second / "A.canvas").is_file())
+
+    def test_broken_canvas_can_be_deleted_but_stale_or_missing_cannot(self):
+        path = self.canvas("깨짐", "{nodes")
+        self.assertStatus(409, me.delete_meeting, self.root, "깨짐", "stale")
+        self.assertTrue(path.is_file())
+        me.delete_meeting(self.root, "깨짐", self.v("깨짐"))
+        self.assertFalse(path.exists())
+        self.assertStatus(404, me.delete_meeting, self.root, "깨짐", "x")
+        self.assertStatus(404, me.delete_meeting, self.root, ".trash", "x")
+
+
+class DeleteBlockTest(Fixture):
+    def test_cards_stay_and_fall_to_outer_block_or_ungrouped(self):
+        self.canvas("회의", {"nodes": [node("group", 0, 0, 1000, 1000, label="밖"), node("group", 10, 10, 300, 300, label="안"),
+                                       node("text", 20, 20, text="a"), node("group", 2000, 0, 300, 300, label="따로"),
+                                       node("text", 2010, 10, text="b")],
+                             "edges": [{"id": "e1", "fromNode": "group-10-10", "toNode": "text-20-20"}]})
+        me.move_item(self.root, self.vault, "회의", "text-20-20", "group-10-10", 0, self.v("회의"))
+        me.delete_block(self.root, "회의", "group-10-10", self.v("회의"))
+        me.delete_block(self.root, "회의", "group-2000-0", self.v("회의"))
+        self.assertEqual(self.labels("회의"), [("밖", ["a"]), ("미분류", ["b"])])
+        self.assertEqual(self.data("회의")["edges"], [])
+        self.assertNotIn("group-10-10", mc.read_order(self.root / "회의.canvas"))
+
+    def test_rejects_ungrouped_cards_and_unknown(self):
+        self.canvas("회의", {"nodes": [node("group", 0, 0, label="g"), node("text", 500, 0, text="t")]})
+        v = self.v("회의")
+        self.assertStatus(400, me.delete_block, self.root, "회의", "_ungrouped", v)
+        self.assertStatus(404, me.delete_block, self.root, "회의", "text-500-0", v)
+        self.assertStatus(404, me.delete_block, self.root, "회의", "nope", v)
+        self.assertStatus(409, me.delete_block, self.root, "회의", "group-0-0", "stale")
+        self.assertEqual(self.v("회의"), v)
+
+
 if __name__ == "__main__":
     unittest.main()

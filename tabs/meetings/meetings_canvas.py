@@ -1,9 +1,11 @@
 """회의 자료 Canvas 읽기(설정에서 고른 회의 폴더). HTTP와 무관한 순수 함수만 둔다(meetings_serve.py·meetings_edit.py 가 쓴다).
 
-- 회의 1건 = 회의 폴더 바로 아래 `.canvas` 1개, 안건 블록 1개 = Canvas 그룹 1개.
+- 업무 1건 = 회의 폴더 바로 아래 `.canvas` 1개, 그 업무의 회의 1건(화면의 블록) = Canvas 그룹 1개.
+  코드·API의 meeting 은 업무 Canvas, block 은 회의(그룹)다(저장 형식과 주소를 그대로 두려고 이름은 옛것을 쓴다).
 - 노드 사각형이 그룹 사각형 안에 완전히 들어가면(경계 포함) 그 그룹 소속, 여럿이면 면적이 가장 작은 그룹, 없으면 `미분류`.
-- 블록 순서는 Canvas 위치(y, x). 블록 안 항목 순서는 `.order/<회의 id>.json`에 적힌 id를 먼저, 나머지는 위치순.
-- Obsidian이 새로 만든 `{}` Canvas는 빈 회의다. `version`은 Canvas·순서 파일 내용 해시(쓰기 충돌 확인용).
+- 회의 블록은 이름 앞 `YYYY-MM-DD` 날짜 최신순, 날짜가 없으면 그 뒤에 Canvas 위치(y, x)순, `미분류`는 맨 뒤.
+  블록 안 항목 순서는 `.order/<업무 id>.json`에 적힌 id를 먼저, 나머지는 위치순.
+- Obsidian이 새로 만든 `{}` Canvas는 빈 업무다. `version`은 Canvas·순서 파일 내용 해시(쓰기 충돌 확인용).
 설계: docs/superpowers/specs/2026-11-04-meetings-canvas-design.md
 """
 from __future__ import annotations
@@ -39,7 +41,7 @@ class CanvasError(ValueError):
 
 
 def split_name(stem: str) -> tuple[str, str]:
-    """`2026-11-05 회의명` → ("2026-11-05", "회의명"). 날짜가 없으면 ("", stem)."""
+    """`2026-11-05 이름` → ("2026-11-05", "이름"). 날짜가 없으면 ("", stem). 업무 파일명과 회의 블록 이름에 쓴다."""
     match = DATE.match(stem)
     if not match:
         return "", stem
@@ -214,6 +216,8 @@ def build_blocks(nodes: list[dict], vault: Path, order: dict | None = None) -> l
             "color": color if isinstance(color, str) and COLOR.match(color) else "",
             "items": _apply_order(entries, order.get(group_id, []) if group_id else []),
         })
+    # 날짜 최신순. 정렬은 안정적이라 날짜가 같거나 없는 블록은 위치순을 지킨다(빈 날짜는 reverse 로 맨 뒤).
+    blocks.sort(key=lambda block: split_name(block["label"])[0], reverse=True)
     if loose:
         blocks.append({"id": UNGROUPED_ID, "label": UNGROUPED, "color": "",
                        "items": _apply_order(loose, order.get(UNGROUPED_ID, []))})

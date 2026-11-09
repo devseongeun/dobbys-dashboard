@@ -1,12 +1,13 @@
 """회의 자료(Canvas, 설정에서 고른 회의 폴더) 로컬 서버. 127.0.0.1 에만 바인딩한다.
+API의 meeting = 업무 Canvas, block = 그 업무의 회의(Canvas 그룹). meetings_canvas.py 참고.
 
 - `/`는 회의 자료 화면(`meetings.html`), `/meetings.js`·`/meetings_lib.js`·`/meetings.css`는 화면 파일,
   `/marked.umd.js`는 md 렌더러(`tabs/_common/vendor/`)다.
-- 읽기(GET): `/api/meetings` 목록, `/api/meetings/<id>` 블록(없으면 404, 깨진 JSON이면 422),
+- 읽기(GET): `/api/meetings` 업무 목록, `/api/meetings/<id>` 회의 블록들(없으면 404, 깨진 JSON이면 422),
   `/api/tree?path=` Vault 폴더 한 단계, `/api/search?q=` 파일 검색,
   `/file?p=<vault 경로>` Vault 안 미리보기 형식 파일(회의에 담겼는지와 무관, Vault 트리 미리보기도 쓴다).
-- 쓰기(POST, `X-Meetings-Editor: 1` 헤더·로컬 Origin·본문 version 필요): 새 회의, 회의·블록 이름, 새 블록,
-  카드 추가·이동·삭제. 응답은 바뀐 뒤의 상세. 규칙은 meetings_edit.py.
+- 쓰기(POST, `X-Meetings-Editor: 1` 헤더·로컬 Origin·본문 version 필요): 새 업무, 업무·회의 이름, 새 회의,
+  업무·회의 삭제, 카드 추가·이동·삭제. 응답은 바뀐 뒤의 상세, 업무 삭제는 남은 목록. 규칙은 meetings_edit.py.
 - 요청마다 Canvas를 다시 읽는다. `Host`가 localhost가 아니면 403(DNS 리바인딩 방어), GET·POST 외에는 405.
 
 대시보드가 make_handler 를 /meetings/ 아래에 올린다.
@@ -35,6 +36,7 @@ API = "/api/meetings"
 EDITOR_HEADER = "X-Meetings-Editor"
 MAX_BODY = 64 * 1024
 EditError = meetings_edit.EditError
+LIST = object()  # _write 결과: 상세 대신 업무 목록을 응답한다(업무 삭제).
 
 
 def make_handler(root: Path, vault: Path):
@@ -103,10 +105,16 @@ def make_handler(root: Path, vault: Path):
             try:
                 meeting = meetings_canvas.read_meeting(root, vault, meeting_id)
             except meetings_canvas.CanvasError as exc:
-                self._send_json(422, {"error": str(exc)})
+                # 깨진 Canvas도 지울 수 있게 version(파일 해시)을 함께 준다. 파일조차 못 읽으면 version 없이.
+                payload = {"error": str(exc)}
+                try:
+                    payload["version"] = meetings_canvas.version_of(meetings_canvas.resolve_meeting(root, meeting_id))
+                except OSError:
+                    pass
+                self._send_json(422, payload)
                 return
             if meeting is None:
-                self._send_json(404, {"error": "회의 Canvas가 없다"})
+                self._send_json(404, {"error": "업무 Canvas가 없다"})
                 return
             self._send_json(200, meeting)
 
@@ -139,6 +147,9 @@ def make_handler(root: Path, vault: Path):
             if meeting_id is None:
                 self._send_json(404, {"error": "not found"})
                 return
+            if meeting_id is LIST:
+                self._send_json(200, {"meetings": meetings_canvas.list_meetings(root)})
+                return
             self._detail(meeting_id)
 
         def _read_json(self) -> dict:
@@ -158,7 +169,8 @@ def make_handler(root: Path, vault: Path):
                 raise EditError(400, "본문은 JSON 객체다")
             return body
 
-        def _write(self, raw_path: str, body: dict) -> str | None:
+        def _write(self, raw_path: str, body: dict) -> str | object | None:
+            """바뀐 업무 id(상세 응답), LIST(목록 응답), 맞는 경로가 없으면 None."""
             parts = [urllib.parse.unquote(part) for part in raw_path.split("/")]
             if parts[:3] != ["", "api", "meetings"]:
                 return None
@@ -171,8 +183,13 @@ def make_handler(root: Path, vault: Path):
                     return edit.rename_meeting(root, meeting_id, body.get("date"), body.get("title"), version)
                 case [meeting_id, "blocks"]:
                     return edit.add_block(root, meeting_id, body.get("label"), version)
+                case [meeting_id, "delete"]:
+                    edit.delete_meeting(root, meeting_id, version)
+                    return LIST
                 case [meeting_id, "blocks", block_id, "rename"]:
                     return edit.rename_block(root, meeting_id, block_id, body.get("label"), version)
+                case [meeting_id, "blocks", block_id, "delete"]:
+                    return edit.delete_block(root, meeting_id, block_id, version)
                 case [meeting_id, "blocks", block_id, "items"]:
                     return edit.add_item(root, vault, meeting_id, block_id, body, version)
                 case [meeting_id, "items", item_id, "move"]:

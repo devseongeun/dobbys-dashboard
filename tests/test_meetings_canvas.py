@@ -64,6 +64,17 @@ class BuildBlocksTest(Fixture):
         self.assertEqual([i["text"] for i in blocks[0]["items"]], ["첫째-왼쪽", "첫째-오른쪽", "둘째"])
         self.assertEqual(blocks[1]["items"], [])
 
+    def test_meeting_blocks_newest_date_first_then_undated_by_position_and_ungrouped_last(self):
+        blocks = self.blocks([
+            node("group", 0, 0, 300, 300, label="11/3 ① 날짜 형식 아님"),
+            node("group", 0, 400, 300, 300, label="2026-10-01 예전 회의"),
+            node("group", 0, 800, 300, 300, label="날짜 없음"),
+            node("group", 0, 1200, 300, 300, label="2026-11-03 최근 회의"),
+            node("text", 2000, 0, text="밖"),
+        ])
+        self.assertEqual([b["label"] for b in blocks],
+                         ["2026-11-03 최근 회의", "2026-10-01 예전 회의", "11/3 ① 날짜 형식 아님", "날짜 없음", "미분류"])
+
     def test_group_label_and_color_defaults(self):
         blocks = self.blocks([
             node("group", 0, 0, label="  ", color="3"),

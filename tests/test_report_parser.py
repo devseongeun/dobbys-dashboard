@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tabs.weekly import report_parser
+from tabs.weekly import TAB, report_parser
 
 
 REPORT = """# {date} 주간 진행 상황 업데이트 초안
@@ -131,6 +131,37 @@ class FlagParsingTest(unittest.TestCase):
         self.assertIn("배포 로그", report.flags[0]["text"])
         # 확인 단위는 회차 전체이므로 flag 항목에 식별자가 붙지 않는다
         self.assertEqual({key for flag in report.flags for key in flag}, {"kind", "origin", "text"})
+
+
+class TemplateTest(unittest.TestCase):
+    def write(self, folder: Path, name: str) -> None:
+        _, body = TAB.template("0")
+        (folder / name).write_bytes(body)
+
+    def test_dated_template_reads_as_standard_report_with_every_section(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            name, _ = TAB.template("0")
+            self.write(folder, name.replace("YYYY-MM-DD", "2026-11-09"))
+            [report] = report_parser.load_reports([folder])
+        self.assertTrue(report.standard)
+        self.assertEqual((report.date, report.title, report.subtitle),
+                         ("2026-11-09", "가장 중요한 업무 한 줄", "두 번째 업무 한 줄"))
+        self.assertEqual([task["title"] for task in report.tasks], ["가장 중요한 업무", "두 번째 업무"])
+        self.assertEqual([row["label"] for row in report.tasks[0]["rows"]], report_parser.DETAIL_LABELS)
+        self.assertEqual((report.tally["total"], [p["value"] for p in report.tally["parts"]]), (3, [2, 1]))
+        self.assertEqual([report.period_version, report.approval], ["프로젝트 버전", "미처리"])
+        for filled in (report.period_scope, report.metrics, report.this_week, report.next_week,
+                       report.issues, report.ppt, report.sources):
+            self.assertTrue(filled)
+        # 자리표시 문장이 미해결 항목으로 잡히지 않는다.
+        self.assertEqual(report.flags, [])
+
+    def test_template_left_with_placeholder_name_is_not_a_report(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            self.write(folder, TAB.template("0")[0])
+            self.assertEqual(report_parser.load_reports([folder]), [])
 
 
 if __name__ == "__main__":

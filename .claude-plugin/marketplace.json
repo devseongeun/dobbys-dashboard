@@ -1,0 +1,20 @@
+{
+  "name": "dobbys-dashboard",
+  "owner": {
+    "name": "devseongeun",
+    "url": "https://github.com/devseongeun"
+  },
+  "metadata": {
+    "description": "도비의 대시보드 팀 공용 Claude Code 스킬",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "dobbys-dashboard",
+      "source": "./",
+      "description": "대시보드 주간 보고 탭(실험실)이 읽는 표준 섹션 형식으로 주간 보고 초안을 쓴다.",
+      "category": "productivity",
+      "tags": ["weekly-report", "korean"]
+    }
+  ]
+}

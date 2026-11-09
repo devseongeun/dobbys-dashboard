@@ -19,6 +19,7 @@ from pathlib import Path
 from .markdown_renderer import inline, outline, render_markdown
 from .report_parser import Node, Report, load_reports, norm
 from .viewer_cite import CSS as CITE_CSS, JS as CITE_JS, cite_button
+from .viewer_guide import CSS as GUIDE_CSS, JS as GUIDE_JS, guide_dialog, open_button as guide_button
 from .viewer_html import esc, mark_inline, nodes_html
 from .viewer_refresh import CSS as REFRESH_CSS, JS as REFRESH_JS, button_html as refresh_button_html
 from .viewer_review import CSS as REVIEW_CSS, JS as REVIEW_JS, flags_section, review_button
@@ -249,7 +250,8 @@ def briefing_html(report: Report) -> str:
     parts.append(
         '<div class="notice"><span class="label">AI 브리핑</span>'
         '<span>초안에서 항목을 그대로 뽑아 배치한 화면입니다. 새로 지어낸 문장은 없습니다. '
-        '문장 전체와 맥락은 <b>초안 원문</b> 탭에서 확인하세요.</span></div>'
+        '문장 전체와 맥락은 <b>초안 원문</b> 탭에서 확인하세요.</span>'
+        f'{guide_button()}</div>'
     )
 
     meta = []
@@ -344,8 +346,9 @@ def briefing_html(report: Report) -> str:
                      f'{nodes_html(report.body)}</section>')
 
     if not report.core and not report.tasks and not report.body:
-        parts.append('<section class="blk"><div class="panel">이 초안은 표준 섹션 구성이 아닙니다. '
-                     '초안 원문 탭에서 전체 내용을 확인하세요.</div></section>')
+        parts.append('<section class="blk"><div class="panel guide-empty">이 초안은 표준 섹션 구성이 아닙니다. '
+                     '초안 원문 탭에서 전체 내용을 확인하세요.'
+                     f'{guide_button("표준 섹션 구성 보기")}</div></section>')
     return ''.join(parts)
 
 
@@ -432,7 +435,7 @@ def viewer_page(reports: list[Report]) -> str:
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
-<style>{BASE_CSS}{VIEWER_CSS}{REVIEW_CSS}{CITE_CSS}{REFRESH_CSS}</style></head><body>
+<style>{BASE_CSS}{VIEWER_CSS}{REVIEW_CSS}{CITE_CSS}{REFRESH_CSS}{GUIDE_CSS}</style></head><body>
 <header class="top">
   <a class="brand" href="#">주간 보고 뷰어</a>
   <div class="tools">
@@ -440,6 +443,7 @@ def viewer_page(reports: list[Report]) -> str:
     <div class="search"><input id="q" type="search" placeholder="전체 회차 검색" autocomplete="off">
     <button class="clear" id="qclear" hidden aria-label="검색 지우기">×</button></div>
     {refresh_button_html()}
+    {guide_button()}
     <button class="iconbtn" id="themeBtn" title="테마 전환">◐</button>
   </div>
 </header>
@@ -447,6 +451,7 @@ def viewer_page(reports: list[Report]) -> str:
   <nav class="rail" id="rail" aria-label="회차 목록"></nav>
   <main class="viewer-pane" id="pane"></main>
 </div>
+{guide_dialog()}
 <script type="application/json" id="report-data">{data}</script>
 <script>
 (function(){{
@@ -619,9 +624,11 @@ def viewer_page(reports: list[Report]) -> str:
 {REVIEW_JS}
 {CITE_JS}
 {REFRESH_JS}
+{GUIDE_JS}
 
   refreshInit();
   citeInit();
+  guideInit();
   reviewInit();
   render();
 }})();

@@ -1,0 +1,11 @@
+{
+  "name": "dobbys-dashboard",
+  "description": "도비의 대시보드 팀 공용 스킬. 주간 보고 탭(실험실)이 읽는 표준 섹션 형식으로 주간 보고 초안을 쓴다.",
+  "version": "0.1.0",
+  "author": {
+    "name": "devseongeun",
+    "url": "https://github.com/devseongeun"
+  },
+  "repository": "https://github.com/devseongeun/dobbys-dashboard",
+  "keywords": ["weekly-report", "dashboard", "korean"]
+}

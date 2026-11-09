@@ -7,7 +7,9 @@ from pathlib import Path
 
 from dashboard.dispatch import Mount
 from dashboard.paths import PORT
-from dashboard.tab import Field, Tab
+from dashboard.tab import Field, Tab, Template
+
+from .viewer_guide import TEMPLATE
 
 VIEWER_NAME = "weekly-report-viewer.html"
 SOURCES_NAME = "sources.json"  # 뷰어를 구운 폴더 목록. 설정이 바뀌면 다시 굽는다.
@@ -40,4 +42,6 @@ TAB = Tab(
     build=_build,
     question="주간 보고 초안을 챙기고 싶어요",
     summary="주간 보고 폴더의 초안 md를 모아 봐요.",
+    templates=(Template(TEMPLATE, help="AI 브리핑이 읽는 표준 섹션이 모두 들어 있습니다. 파일명의 YYYY-MM-DD를 회차 날짜로, "
+                                       "보고 기간과 각 섹션 내용을 고쳐 주간 보고 폴더에 넣으세요."),),
 )

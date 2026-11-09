@@ -9,7 +9,7 @@ test("기본 상태는 캘린더 탭과 전체 필터", () => {
   const s = defaultState(DOMS);
   expect(s.tab).toBe("cal");
   expect(s.doms.size).toBe(4);
-  expect(s.statuses.size).toBe(4);
+  expect(s.statuses).toEqual(new Set(["할 일", "진행", "개발완료", "완료", "취소"]));
   expect(s.soloOnly).toBe(false);
   expect(s.period).toBe("thisOnly");
 });
@@ -75,6 +75,15 @@ test("4종 밖의 Jira 상태를 가진 이슈는 필터를 통과한다", () =>
 
   s.statuses = new Set(["진행"]);
   expect(matches(unknown, s, T)).toBe(true);
+});
+
+test("기타 상태에 칸을 지정한 이슈는 그 칸의 상태 칩을 따른다", () => {
+  const s = defaultState(DOMS);
+  const assigned = { domain: "티켓", status: "검토", assigned: "완료", people: 1 };
+  s.statuses = new Set(["진행"]);
+  expect(matches(assigned, s, T)).toBe(false);
+  s.statuses = new Set(["완료"]);
+  expect(matches(assigned, s, T)).toBe(true);
 });
 
 test("기간 필터: 이번 달만은 이번 달과 겹치는 일정만, 이전 달 제외는 지난 일정만 뺀다", () => {

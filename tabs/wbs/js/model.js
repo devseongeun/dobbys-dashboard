@@ -88,7 +88,8 @@ function buildRow(task, issue, key, today) {
     duedate,
     spentSeconds,
     spentHours: spentSeconds / 3600,
-    overdue: Boolean(duedate && duedate < today && statusCategory !== "완료"),
+    // 개발완료는 Jira 분류가 '진행 중'이지만 개발은 끝난 것이라 기한 초과로 치지 않는다.
+    overdue: Boolean(duedate && duedate < today && statusCategory !== "완료" && issue?.status !== "개발완료"),
     dday: duedate ? diffDays(today, duedate) : null,
     schedulable: Boolean(start && end),
   };

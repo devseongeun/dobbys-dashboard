@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from tabs.wbs.matching import match_keys
-from tabs.wbs.store import LinkStore
+from tabs.wbs.store import MapStore
 
 
 def task(task_id, d1, d2, name, d3=None):
@@ -41,18 +41,18 @@ class MatchTest(unittest.TestCase):
         self.assertEqual(match_keys(tasks, [issue("PROJ-9", "공통 - 대시보드 - 대시보드")], {}), {})
 
 
-class LinkStoreTest(unittest.TestCase):
+class MapStoreTest(unittest.TestCase):
     def test_set_and_clear_persist(self):
         path = Path(self.enterContext(tempfile.TemporaryDirectory())) / "wbs" / "links.json"
-        store = LinkStore(path)
+        store = MapStore(path)
         self.assertEqual(store.load(), {})
         self.assertEqual(store.set("A", "PROJ-1"), {"A": "PROJ-1"})
-        self.assertEqual(LinkStore(path).load(), {"A": "PROJ-1"})
+        self.assertEqual(MapStore(path).load(), {"A": "PROJ-1"})
         self.assertEqual(store.set("A", None), {})
 
     def test_set_refuses_to_overwrite_corrupt_file(self):
         path = Path(self.enterContext(tempfile.TemporaryDirectory())) / "links.json"
         path.write_text("{broken", encoding="utf-8")
         with self.assertRaises(ValueError):
-            LinkStore(path).set("A", "PROJ-1")
+            MapStore(path).set("A", "PROJ-1")
         self.assertEqual(path.read_text(encoding="utf-8"), "{broken")

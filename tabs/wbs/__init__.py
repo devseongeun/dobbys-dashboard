@@ -53,17 +53,19 @@ def _build(settings: dict, state_dir: Path) -> Mount:
     from .board import BoardService
     from .serve import make_handler
     from .session import JiraSession
-    from .store import LinkStore
+    from .store import MapStore
     from .xlsx import WbsSource
 
     domain = clean_domain(settings["jira_domain"])
     mode = mode_of(settings)
     source = WbsSource(Path(settings["workbook"]), settings["sheet"], settings["owner"]) if mode == WBS else NoWbs()
-    links = LinkStore(state_dir / "links.json")
+    links = MapStore(state_dir / "links.json")
+    assigns = MapStore(state_dir / "status-assign.json")
     session = JiraSession(Keychain(), domain)
     service = BoardService(session, settings["jira_project"], lambda: sorted(set(links.load().values())),
                            CACHE_ROOT / "wbs-jira.json")
-    return Mount("wbs", make_handler(service, source, links, session, state_dir / "plan-drafts.json", domain, mode))
+    return Mount("wbs", make_handler(service, source, links, assigns, session, state_dir / "plan-drafts.json",
+                                     domain, mode))
 
 
 TAB = Tab(

@@ -1,6 +1,6 @@
 """WBS·Jira 탭 handler. 정적 파일 + WBS 엑셀 API + Jira GET 프록시 + Jira 로그인.
 
-Jira 로 쓰는 경로는 없다. 쓰기는 로컬 파일(일정 조정 초안·수동 연결)과 키체인뿐이다.
+Jira 로 쓰는 경로는 없다. 쓰기는 로컬 파일(일정 조정 초안·수동 연결·기타 상태 지정)과 키체인뿐이다.
 """
 from __future__ import annotations
 
@@ -22,6 +22,8 @@ ROOT = Path(__file__).resolve().parent
 DRAFTS_MAX_BYTES = 256 * 1024
 BODY_MAX_BYTES = 16 * 1024
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1"}
+# 보드 칸(js/state.js STATUSES). Jira 상태가 이 다섯이 아닌 행(보드의 '기타')만 사용자가 칸을 지정한다.
+BOARD_STATUSES = ("할 일", "진행", "개발완료", "완료", "취소")
 MIME = {
     ".html": "text/html; charset=utf-8",
     ".css": "text/css; charset=utf-8",
@@ -31,8 +33,10 @@ MIME = {
 WORKBOOK_ERRORS = (OSError, ValueError, KeyError, zipfile.BadZipFile, ET.ParseError)
 
 
-def make_handler(service, source, links, session, drafts_path: Path, domain: str, mode: str = "wbs", root: Path = ROOT):
-    """mode: 일정 기준(wbs|jira). 화면이 안내 문구·WBS 전용 지표를 고르는 데 쓴다."""
+def make_handler(service, source, links, assigns, session, drafts_path: Path, domain: str, mode: str = "wbs",
+                 root: Path = ROOT):
+    """links: 요구사항ID → 이슈키 수동 연결. assigns: 행 키 → 보드 칸 지정.
+    mode: 일정 기준(wbs|jira). 화면이 안내 문구·WBS 전용 지표를 고르는 데 쓴다."""
     root = root.resolve()
     js_dir = (root / "js").resolve()
 
@@ -112,7 +116,8 @@ def make_handler(service, source, links, session, drafts_path: Path, domain: str
                 payload = service.payload(refresh=query.get("refresh", ["0"])[0] == "1")
                 wbs, _ = self._wbs()
                 self._send_json(200, {**payload, "domain": domain, "mode": mode,
-                                      "links": match_keys(wbs["tasks"], payload.get("issues") or [], links.load())})
+                                      "links": match_keys(wbs["tasks"], payload.get("issues") or [], links.load()),
+                                      "assigned": assigns.load()})
                 return
             if path == "/api/issues":
                 keys = [k for k in query.get("keys", [""])[0].split(",") if k]
@@ -167,6 +172,26 @@ def make_handler(service, source, links, session, drafts_path: Path, domain: str
                     return
                 service.invalidate()
                 self._send_json(200, {"links": saved})
+                return
+            if path == "/api/assign":
+                body = self._body(BODY_MAX_BYTES)
+                if body is None:
+                    return
+                key = body.get("key") if isinstance(body, dict) else None
+                status = body.get("status") if isinstance(body, dict) else None
+                # 행 키는 Jira 이슈키이거나, Jira 에 연결되지 않은 WBS 행의 요구사항ID 다(js/model.js joinRows).
+                if not isinstance(key, str) or not (KEY_RE.match(key) or key in {t["id"] for t in self._wbs()[0]["tasks"]}):
+                    self._send_json(400, {"error": "이슈키나 WBS 요구사항ID 가 아니다"})
+                    return
+                if status is not None and status not in BOARD_STATUSES:
+                    self._send_json(400, {"error": "상태는 " + "·".join(BOARD_STATUSES) + " 중 하나다"})
+                    return
+                try:
+                    saved = assigns.set(key, status)
+                except ValueError as exc:
+                    self._send_json(500, {"error": str(exc)})
+                    return
+                self._send_json(200, {"assigned": saved})
                 return
             self._reject()
 

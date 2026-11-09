@@ -21,7 +21,7 @@ from dashboard.paths import STATE_ROOT  # noqa: E402
 from tabs.comments.overrides import OverrideStore  # noqa: E402
 from tabs.wbs import DEFAULT_SHEET, clean_domain  # noqa: E402
 from tabs.wbs.matching import match_keys  # noqa: E402
-from tabs.wbs.store import LinkStore, read_json, write_json  # noqa: E402
+from tabs.wbs.store import MapStore, read_json, write_json  # noqa: E402
 from tabs.wbs.xlsx import read_wbs  # noqa: E402
 
 HOME = Path.home()
@@ -92,7 +92,7 @@ def _migrate_links(args: argparse.Namespace, old: dict, cache: dict) -> None:
     me = (cache.get("me") or {}).get("displayName")
     mine = [i for i in issues.values() if me and i.get("assignee") == me]
     auto = match_keys(list(tasks.values()), mine, {})
-    links = LinkStore(state_root / "wbs" / "links.json")
+    links = MapStore(state_root / "wbs" / "links.json")
     print("[..] WBS-Jira 연결: 자동 매칭과 다른 것만 수동 연결로 옮긴다. 아래 목록을 검토한다.")
     for task in old.get("tasks", []):
         key = task.get("jira")

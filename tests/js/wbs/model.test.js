@@ -69,6 +69,10 @@ test("기한 초과 + 미완료만 overdue", () => {
   const done = joinRows(WBS, [{ ...ISSUES[1], statusCategory: "완료", status: "완료" }],
     "2026-09-28");
   expect(done.find((r) => r.key === "PROJ-1400").overdue).toBe(false);
+
+  const devDone = joinRows(WBS, [{ ...ISSUES[1], statusCategory: "진행 중", status: "개발완료" }],
+    "2026-09-28");
+  expect(devDone.find((r) => r.key === "PROJ-1400").overdue).toBe(false);
 });
 
 test("dday는 오늘 기준 남은 일수", () => {

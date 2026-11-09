@@ -63,11 +63,17 @@ const app = {
   draftsReady: false,
   // 내 담당이 아닌 이슈(담당 변경 요청 대상). 일정 조정 탭에서만 쓰고 다른 탭에는 섞지 않는다.
   extra: [],
+  // 행 키 → 보드 칸. Jira 상태가 보드 칸이 아닌(기타) 행에만 쓰인다(state.js columnOf). 서버 status-assign.json 에 저장한다.
+  assigned: {},
   notice: "",
   drag: null,
 };
 
 const planRows = () => app.rows.concat(app.extra);
+
+function applyAssigned() {
+  for (const row of planRows()) row.assigned = app.assigned[row.key] || null;
+}
 
 // 읽기 전용 키 조회(GET /api/issues). 담당자와 무관하게 이슈 정보를 가져온다.
 // 404 는 이 엔드포인트가 생기기 전에 띄운 serve.py 가 아직 돌고 있다는 뜻이다.
@@ -83,6 +89,7 @@ function addExtra(issues) {
   const keys = new Set(fresh.map((issue) => issue.key));
   app.extra = app.extra.concat(
     joinRows(app.wbs.tasks.filter((t) => keys.has(t.jira)), fresh, todayISO()));
+  applyAssigned();
 }
 
 async function load(refresh) {
@@ -96,6 +103,7 @@ async function load(refresh) {
     const tasks = wbs.tasks.map((task) => ({ ...task, jira: links[task.id] || null }));
     app.wbs = { ...wbs, tasks };
     app.board = board;
+    app.assigned = board.assigned || {};
     app.jira = { domain: board.domain, connected: Boolean(board.connected), mode: board.mode || "wbs" };
     const domains = domainsOf(tasks);
     if (domains.join("|") !== app.domains.join("|")) {
@@ -104,6 +112,7 @@ async function load(refresh) {
     }
     app.rows = joinRows(tasks, board.issues, todayISO());
     app.extra = [];
+    applyAssigned();
     const rekeyed = rekeyDrafts(app.drafts, app.rows);
     if (rekeyed.moved) {
       app.drafts = rekeyed.drafts;
@@ -397,6 +406,8 @@ document.getElementById("panel").onclick = (event) => {
   }
   const link = event.target.closest("[data-link]");
   if (link) { linkIssue(link.dataset.link); return; }
+  // 카드 안의 칸 지정 select 를 누를 때는 모달을 열지 않는다(값 반영은 change 에서).
+  if (event.target.closest("[data-assign]")) return;
   const item = event.target.closest("[data-key]");
   if (item) openModal(item.dataset.key);
 };
@@ -452,6 +463,8 @@ document.addEventListener("pointercancel", endDrag);
 // 변경 목록의 날짜 칸 직접 입력. 연도를 치는 도중에도 change 가 나므로 값만 저장하고,
 // 다시 그리기는 칸을 벗어날 때 한다(입력 중 칸이 사라지지 않게).
 document.getElementById("panel").addEventListener("change", (event) => {
+  const pick = event.target.closest("[data-assign]");
+  if (pick) { assignStatus(pick.dataset.assign, pick.value || null); return; }
   const input = event.target.closest("[data-draft]");
   const row = input && planRows().find((r) => r.key === input.dataset.draft);
   if (!row) return;
@@ -558,6 +571,17 @@ async function linkIssue(taskId) {
   } catch (err) {
     alert("연결 실패: " + err.message);
   }
+}
+
+async function assignStatus(key, status) {
+  try {
+    app.assigned = (await postJson("api/assign", { key, status }, "PUT")).assigned;
+    applyAssigned();
+  } catch (err) {
+    alert("상태 지정 실패: " + err.message);
+  }
+  // 실패해도 다시 그려 select 를 저장된 값으로 되돌린다.
+  render();
 }
 
 document.addEventListener("click", (event) => {

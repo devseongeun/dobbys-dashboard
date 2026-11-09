@@ -8,7 +8,7 @@ from dashboard.keychain import KeychainError
 from tabs.wbs.board import BoardService
 from tabs.wbs.jira import JiraError
 from tabs.wbs.serve import make_handler
-from tabs.wbs.store import LinkStore
+from tabs.wbs.store import MapStore
 from tests.support import request, send_json, serve_handler
 
 TASKS = [{"id": "A-1", "d1": "공통", "d2": "대시보드", "d3": None, "name": "대시보드", "jira": None}]
@@ -58,8 +58,9 @@ class WbsServeTest(unittest.TestCase):
     def setUp(self, source=None):
         self.dir = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.service, self.session = FakeService(), FakeSession()
-        self.links = LinkStore(self.dir / "links.json")
-        handler = make_handler(self.service, source or FakeSource(), self.links, self.session,
+        self.links = MapStore(self.dir / "links.json")
+        self.assigns = MapStore(self.dir / "status-assign.json")
+        handler = make_handler(self.service, source or FakeSource(), self.links, self.assigns, self.session,
                                self.dir / "plan-drafts.json", "team.atlassian.net")
         self.port = serve_handler(self, handler)
 
@@ -102,6 +103,17 @@ class WbsServeTest(unittest.TestCase):
         self.assertIn("links.json", body["error"])
         self.assertEqual(self.links.path.read_text(encoding="utf-8"), "{broken")
 
+    def test_assign_validates_persists_and_reaches_board(self):
+        put = lambda body: send_json(self, self.port, "PUT", "/api/assign", body)
+        self.assertEqual(put({"key": "없음", "status": "진행"})[0], 400)
+        self.assertEqual(put({"key": "PROJ-9", "status": "검토"})[0], 400)
+        self.assertEqual(put({"key": "PROJ-9", "status": "진행"}), (200, {"assigned": {"PROJ-9": "진행"}}))
+        # Jira 에 연결되지 않은 WBS 행은 요구사항ID 가 행 키다.
+        self.assertEqual(put({"key": "A-1", "status": "완료"})[1]["assigned"], {"PROJ-9": "진행", "A-1": "완료"})
+        self.assertEqual(self.get("/api/board")[1]["assigned"], {"PROJ-9": "진행", "A-1": "완료"})
+        self.assertEqual(put({"key": "PROJ-9", "status": None})[1]["assigned"], {"A-1": "완료"})
+        self.assertEqual(self.service.invalidated, 0)
+
     def test_login_maps_auth_failure_to_401_and_success_invalidates(self):
         status, body = send_json(self, self.port, "POST", "/api/login", {"email": "a@b.c", "token": "bad"})
         self.assertEqual(status, 401)
@@ -141,6 +153,9 @@ class BrokenWorkbookTest(WbsServeTest):
     def test_corrupt_links_file_is_500_and_left_untouched(self):
         self.skipTest("깨진 엑셀에서는 해당 없음")
 
+    def test_assign_validates_persists_and_reaches_board(self):
+        self.skipTest("깨진 엑셀에서는 해당 없음")
+
 
 class BrokenKeychainSession:
     def client(self):
@@ -157,7 +172,8 @@ class BrokenKeychainServeTest(unittest.TestCase):
         self.dir = Path(self.enterContext(tempfile.TemporaryDirectory()))
         session = BrokenKeychainSession()
         service = BoardService(session, "PROJ", lambda: [], cache_path=self.dir / "jira.json")
-        handler = make_handler(service, FakeSource(), LinkStore(self.dir / "links.json"), session,
+        handler = make_handler(service, FakeSource(), MapStore(self.dir / "links.json"),
+                               MapStore(self.dir / "status-assign.json"), session,
                                self.dir / "plan-drafts.json", "team.atlassian.net")
         self.port = serve_handler(self, handler)
 

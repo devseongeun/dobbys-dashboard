@@ -2,11 +2,19 @@ export const TABS = ["cal", "plan", "board", "issues", "log"];
 // 보드 칸이자 상태 필터 칩. 진행 흐름(할 일 → 진행 → 개발완료 → 완료) 뒤에 취소, 그 밖은 기타(OTHER).
 export const STATUSES = ["할 일", "진행", "개발완료", "완료", "취소"];
 export const OTHER = "기타";
+// 프로젝트 워크플로에 따라 없을 수 있는 상태. 해당 행이 있을 때만 칸·칩을 보인다.
+const OPTIONAL = new Set(["개발완료"]);
 
 // 보드 칸. Jira 상태가 STATUSES 중 하나면 그 값이 우선하고, 아니면 사용자가 지정한 칸(row.assigned), 없으면 기타.
 export function columnOf(row) {
   if (STATUSES.includes(row.status)) return row.status;
   return STATUSES.includes(row.assigned) ? row.assigned : OTHER;
+}
+
+// 화면에 보일 칸·칩. 필터로 숨기기 전 전체 행으로 구해야 칩을 끈 뒤에도 다시 켤 수 있다.
+export function shownStatuses(rows) {
+  const used = new Set(rows.map(columnOf));
+  return STATUSES.filter((s) => !OPTIONAL.has(s) || used.has(s));
 }
 
 // 기간 필터. 기본은 이번 달만. 해시에는 기본값이 아닐 때만 per=fromThis|all 로 남긴다.

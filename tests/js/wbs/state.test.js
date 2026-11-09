@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { defaultState, matches, monthBounds, parseHash, periodMonths, toHash } from "../../../tabs/wbs/js/state.js";
+import { defaultState, matches, monthBounds, parseHash, periodMonths, shownStatuses, toHash } from "../../../tabs/wbs/js/state.js";
 
 const DOMS = ["공통", "티켓", "테스트", "시스템 관리"];
 
@@ -84,6 +84,14 @@ test("기타 상태에 칸을 지정한 이슈는 그 칸의 상태 칩을 따�
   expect(matches(assigned, s, T)).toBe(false);
   s.statuses = new Set(["완료"]);
   expect(matches(assigned, s, T)).toBe(true);
+});
+
+test("개발완료 칸·칩은 개발완료 행(Jira 상태 또는 지정)이 있을 때만 보인다", () => {
+  const base = ["할 일", "진행", "완료", "취소"];
+  expect(shownStatuses([{ status: "진행" }, { status: null }])).toEqual(base);
+  const withDevDone = ["할 일", "진행", "개발완료", "완료", "취소"];
+  expect(shownStatuses([{ status: "개발완료" }])).toEqual(withDevDone);
+  expect(shownStatuses([{ status: "검토", assigned: "개발완료" }])).toEqual(withDevDone);
 });
 
 test("기간 필터: 이번 달만은 이번 달과 겹치는 일정만, 이전 달 제외는 지난 일정만 뺀다", () => {

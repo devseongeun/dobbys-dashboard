@@ -50,6 +50,13 @@ test("칸 지정 select 는 Jira 상태가 보드 칸이 아닌 카드에만, �
   expect(html).toContain('<option value="진행" selected>');
 });
 
+test("보일 칸에서 개발완료가 빠지면 그 칸과 칸 지정 선택지도 없다", () => {
+  const html = renderBoard([{ key: "X", name: "x", status: "검토" }], ["할 일", "진행", "완료", "취소"]);
+  expect(html).not.toContain("<b>개발완료</b>");
+  expect(html).not.toContain('value="개발완료"');
+  expect(html).toContain("<b>기타</b>");
+});
+
 test("카드에 키와 누적 시간이 표시된다", () => {
   const html = renderBoard(rows);
   expect(html).toContain('data-key="A"');

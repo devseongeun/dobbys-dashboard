@@ -6,7 +6,7 @@ import {
   applyDrafts, changeList, daysBetween, editRange, parseDrafts, parseKeys, rekeyDrafts, renderChanges, setDraft,
   shiftRange, toggleConfirmAll, widenMonths,
 } from "./plan.js";
-import { STATUSES, TABS, matches, parseHash, periodMonths, toHash } from "./state.js";
+import { TABS, matches, parseHash, periodMonths, shownStatuses, toHash } from "./state.js";
 import { aggregate, filterByRange, mineOnly, presetRange, renderWorklog } from "./worklog.js";
 
 const esc = (v) => String(v == null ? "" : v)
@@ -181,7 +181,7 @@ function renderFilters() {
   document.getElementById("filters").innerHTML =
     app.domains.map((d) => chip(d, app.state.doms.has(d), `data-dom="${esc(d)}"`)).join("") +
     '<span class="sep"></span>' +
-    STATUSES.map((s) => chip(s, app.state.statuses.has(s), `data-st="${esc(s)}"`)).join("") +
+    shownStatuses(app.rows).map((s) => chip(s, app.state.statuses.has(s), `data-st="${esc(s)}"`)).join("") +
     '<span class="sep"></span>' +
     chip("단독 담당만", app.state.soloOnly, 'data-flag="soloOnly"') +
     // 워크로그 탭은 자체 기간 컨트롤을 쓰므로 기간 칩을 감춘다.
@@ -253,7 +253,7 @@ function render() {
       scrollToToday("instant");
     }
   } else if (app.state.tab === "board") {
-    panel.innerHTML = renderBoard(visible);
+    panel.innerHTML = renderBoard(visible, shownStatuses(app.rows));
   } else if (app.state.tab === "issues") {
     panel.innerHTML = renderIssues(visible, app.sort, app.jira);
   } else {

@@ -2,7 +2,7 @@
 // 코드의 meeting 은 업무 Canvas, block 은 그 업무의 회의다(서버 API 이름을 따른다).
 // 쓰기는 POST + X-Meetings-Editor 헤더 + 상세의 version. 409 면 알리고 다시 읽는다.
 import {
-  dropIndex, fileInfo, fileUrl, filterMeetings, isWebUrl, linkLabel, obsidianToMarkdown, obsidianUri, parseState,
+  clampPane, dropIndex, fileInfo, fileUrl, filterMeetings, isWebUrl, linkLabel, obsidianToMarkdown, obsidianUri, parseState,
   stripFrontmatter, toHash, todayIso,
 } from "./meetings_lib.js";
 
@@ -514,6 +514,7 @@ function renderAddControl(detail, path) {
 async function renderPreview(state, detail) {
   const path = state.file;
   document.body.classList.toggle("previewing", Boolean(path));
+  applyWidths();
   $("preview").hidden = !path;
   if (!path) { previewKey = ""; $("preview-body").replaceChildren(); $("preview-add").replaceChildren(); return; }
   const item = detail?.blocks.flatMap((block) => block.items).find((i) => i.kind === "file" && i.path === path);
@@ -651,6 +652,81 @@ async function renderTree() {
   if (ticket === treeSeq) $("tree").replaceChildren(...rows);
 }
 
+// ── 칸 너비 ───────────────────────────────────────────
+
+// Vault 칸·미리보기 너비. null 은 기본(Vault 280px, 미리보기는 보드와 1:1.2). 사용자가 정한 값은 localStorage 에 둔다.
+const PANES = {
+  side: { key: "meetings.sideWidth", css: "--side-w", min: 200, node: () => document.querySelector(".side") },
+  preview: { key: "meetings.previewWidth", css: "--preview-w", min: 280, node: () => $("preview") },
+};
+const widths = { side: recallWidth("side"), preview: recallWidth("preview") };
+
+function recallWidth(pane) {
+  try { return Number(localStorage.getItem(PANES[pane].key)) || null; } catch { return null; }
+}
+
+function rememberWidth(pane) {
+  try {
+    if (widths[pane] == null) localStorage.removeItem(PANES[pane].key);
+    else localStorage.setItem(PANES[pane].key, String(widths[pane]));
+  } catch { /* 저장소 차단 시 무시 */ }
+}
+
+// 정한 너비를 지금 화면 폭에 맞춰 줄여 그린다. Vault 칸은 미리보기 최소 폭을, 미리보기는 실제 Vault 칸 폭을 남긴다.
+function applyWidths() {
+  const viewport = document.documentElement.clientWidth;
+  const previewing = document.body.classList.contains("previewing");
+  const side = widths.side == null ? null
+    : clampPane(widths.side, { min: PANES.side.min, viewport, others: previewing ? PANES.preview.min : 0 });
+  const preview = widths.preview == null ? null
+    : clampPane(widths.preview, { min: PANES.preview.min, viewport, others: side ?? 280 });
+  const style = document.body.style;
+  for (const [pane, value] of [["side", side], ["preview", preview]]) {
+    if (value == null) style.removeProperty(PANES[pane].css);
+    else style.setProperty(PANES[pane].css, value + "px");
+  }
+  return { side, preview };
+}
+
+// 너비를 바꾸고 화면 폭에 맞춘 값(실제로 그려진 값)을 남긴다.
+function setWidth(pane, width) {
+  widths[pane] = width;
+  widths[pane] = applyWidths()[pane];
+}
+
+function wireResizer(handle, pane) {
+  const sign = pane === "side" ? 1 : -1; // 미리보기는 오른쪽에 붙어 있어 왼쪽으로 끌수록 넓어진다.
+  handle.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    handle.classList.add("on");
+    document.body.classList.add("resizing");
+    const startX = e.clientX;
+    const startWidth = PANES[pane].node().getBoundingClientRect().width;
+    const move = (ev) => setWidth(pane, startWidth + sign * (ev.clientX - startX));
+    const end = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", end);
+      handle.removeEventListener("pointercancel", end);
+      handle.classList.remove("on");
+      document.body.classList.remove("resizing");
+      rememberWidth(pane);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+  });
+  handle.addEventListener("dblclick", () => { setWidth(pane, null); rememberWidth(pane); });
+  handle.addEventListener("keydown", (e) => {
+    const step = { ArrowLeft: -16, ArrowRight: 16 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    setWidth(pane, PANES[pane].node().getBoundingClientRect().width + sign * step);
+    rememberWidth(pane);
+  });
+}
+
 // ── 시작 ─────────────────────────────────────────────
 
 $("title").addEventListener("click", startRenameMeeting);
@@ -689,6 +765,10 @@ $("tree-search").addEventListener("input", () => {
   searchTimer = setTimeout(renderTree, 200);
 });
 window.addEventListener("hashchange", sync);
+window.addEventListener("resize", applyWidths);
+wireResizer($("side-resizer"), "side");
+wireResizer($("preview-resizer"), "preview");
+applyWidths();
 
 await refreshList();
 ensureSelection();

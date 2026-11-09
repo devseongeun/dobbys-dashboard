@@ -89,3 +89,9 @@ export function filterMeetings(meetings, query) {
     return words.every((word) => text.includes(word));
   });
 }
+
+// 칸 너비 조절. 보드가 BOARD_MIN 만큼은 남게 [min, 화면 - 다른 칸 - BOARD_MIN] 로 맞춘다. 남는 자리가 min 보다 좁으면 min.
+export const BOARD_MIN = 320;
+export function clampPane(width, { min, viewport, others = 0 }) {
+  return Math.round(Math.max(min, Math.min(width, viewport - others - BOARD_MIN)));
+}

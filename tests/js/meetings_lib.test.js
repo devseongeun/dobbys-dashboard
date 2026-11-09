@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import {
-  dropIndex, fileInfo, fileUrl, filterMeetings, isWebUrl, linkLabel, obsidianToMarkdown, obsidianUri, parseState,
-  stripFrontmatter, toHash, todayIso,
+  BOARD_MIN, clampPane, dropIndex, fileInfo, fileUrl, filterMeetings, isWebUrl, linkLabel, obsidianToMarkdown, obsidianUri,
+  parseState, stripFrontmatter, toHash, todayIso,
 } from "../../tabs/meetings/meetings_lib.js";
 
 test("업무 검색은 낱말마다 날짜·이름 어딘가에 있으면 남기고, 빈 검색어는 전체다", () => {
@@ -73,4 +73,12 @@ test("dropIndex 는 포인터보다 위에 있는 항목 중점 개수", () => {
 test("todayIso 는 로컬 날짜를 YYYY-MM-DD 로", () => {
   expect(todayIso(new Date(2026, 0, 5, 23, 59))).toBe("2026-01-05");
   expect(todayIso(new Date(2026, 10, 30, 0, 0))).toBe("2026-11-30");
+});
+
+test("clampPane 은 보드 최소 폭을 남기고, 자리가 모자라면 칸 최소 폭이 이긴다", () => {
+  const viewport = 1400;
+  expect(clampPane(350.4, { min: 200, viewport })).toBe(350);
+  expect(clampPane(120, { min: 200, viewport })).toBe(200);
+  expect(clampPane(2000, { min: 200, viewport, others: 400 })).toBe(viewport - 400 - BOARD_MIN);
+  expect(clampPane(500, { min: 280, viewport: 600, others: 280 })).toBe(280);
 });

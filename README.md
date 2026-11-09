@@ -13,6 +13,44 @@
 | `meetings` | 📎 회의 자료 | Vault 안 회의 폴더 | 없음 |
 | `weekly` | 📝 주간 보고 (실험실) | 주간 보고 폴더(여러 개 가능) | 없음 |
 
+## 화면
+
+목업 데이터로 찍은 탭별 시연이다.
+
+### 📅 WBS·Jira
+
+WBS 엑셀만 쓸 때: 캘린더에서 기능 구분 칩으로 거르고 보드로 넘어간다. 보드 칸은 카드 아래 칸 선택으로 정한 값이다.
+
+![WBS·Jira 탭(WBS 엑셀만): 캘린더 필터와 보드](docs/demo/wbs.gif)
+
+Jira에 로그인했을 때: WBS 행에 연결한 Jira 이슈의 일정·상태·기록 시간이 WBS보다 우선하고, WBS에 없는 내 담당 이슈도 함께 보인다. 보드 칸은 Jira 상태를 따른다. 일정 조정에서 막대를 끌어 기간을 옮기면 Jira에는 보내지 않고 변경안으로만 쌓인다. 워크로그에서 기간별 기록을 본다.
+
+![WBS·Jira 탭(Jira 연동): 캘린더, Jira 상태 보드, 일정 조정, 워크로그](docs/demo/wbs-jira.gif)
+
+### 🗂️ 의사결정 현황
+
+기능 구분으로 거르고 진행 중·종결 문서를 본다. 문서 이름을 누르면 그 문서가 열린다.
+
+![의사결정 현황 탭: 기능 구분 필터, 종결 목록, 문서 열기](docs/demo/assets.gif)
+
+### 🛠️ 구현 진행 현황
+
+할 일·진행 중·완료 계획의 진행률과 체크 수를 본다.
+
+![구현 진행 현황 탭: 상태별 계획 목록](docs/demo/plans.gif)
+
+### 📎 회의 자료
+
+회의 블록의 파일을 미리 보고 다른 업무로 옮긴다. Vault 파일을 검색해 회의 블록으로 끌어다 놓고, `+ 링크`로 웹 페이지 주소를 넣는다.
+
+![회의 자료 탭: 파일 미리보기, 업무 전환, 파일 끌어 넣기, 링크 추가](docs/demo/meetings.gif)
+
+### 📝 주간 보고 (실험실)
+
+AI 브리핑을 내려 보고 초안 원문으로 바꾼다.
+
+![주간 보고 탭: AI 브리핑과 초안 원문](docs/demo/weekly.gif)
+
 ## 요구 사항
 
 - macOS
@@ -122,5 +160,7 @@ bun test tests/js
 ```
 
 최초 온보딩을 다시 보려면 `sh scripts/sandbox.sh`(기본 포트 8790, `PORT=…`로 변경)를 실행하고 `http://127.0.0.1:8790/`을 연다. 임시 `HOME`에서 빈 설정으로 뜨므로 실제 설정·상태는 그대로고, 끄면 임시 폴더를 지운다. Finder 선택 창은 실제 디스크를 보여 주므로 고른 경로도 실제 폴더다. 키체인은 실제 것을 쓰므로 샌드박스 탭 안에서는 로그인하지 않는다.
+
+README [화면](#화면)의 GIF(`docs/demo/<장면>.gif`)는 `sh scripts/demo/record.sh`로 다시 찍는다. `scripts/demo/mock_data.py`가 임시 `HOME`에 가짜 Vault(WBS 엑셀·의사결정 HTML·계획 md·회의 Canvas·주간 보고 md), 설정, Jira 목업 응답(`demo-jira.json`)을 오늘 날짜 기준으로 만든다. `scripts/demo/serve_demo.py`는 `serve.py`와 같되 키체인을 메모리로, Jira HTTP를 그 목업 응답으로 바꿔 띄우므로 실제 키체인·Jira에 닿지 않고 아무 이메일·token으로 로그인된다. 비어 있는 포트에 띄운 이 서버를 `scripts/demo/record.mjs`(Playwright, 임시 폴더에 설치)가 다크 모드로 영상 하나에 녹화하면서 장면 구간을 남기고, ffmpeg가 구간마다 GIF를 하나씩 자른다. 서버가 목업 프로젝트(`DEMO 1.0.0`)가 아니면 녹화하지 않는다. node(npm)와 ffmpeg가 필요하다. 장면은 `record.mjs`, 데이터는 `mock_data.py`에서 고친다.
 
 탭을 추가하려면 `tabs/<id>/__init__.py`에서 `TAB`을 내보내고, `tabs/__init__.py`의 `ALL_TABS`에 넣는다. 첫 온보딩에서 물을 불편 지점은 `Tab(question=…, summary=…)`에 적는다(비면 "탭을 쓸까요?"로 묻는다). 문서 형식이 정해진 탭은 `Tab(templates=(Template(경로, help=…),))`로 템플릿을 붙이면 질문·확인 화면과 ⚙ 설정에 내려받기 링크가 뜬다(`/_dashboard/templates/<id>/<순번>`, 파일명은 그대로, 본문의 `{{TODAY}}`는 오늘 날짜). 실험 중인 탭은 `Tab(experimental=True)`로 두면 사이드바와 탭 편집 화면(확인 화면·⚙ 설정)의 이름 옆에 `실험실`이 붙는다.

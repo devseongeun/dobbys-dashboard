@@ -44,4 +44,5 @@ TAB = Tab(
     summary="주간 보고 폴더의 초안 md를 모아 봐요.",
     templates=(Template(TEMPLATE, help="AI 브리핑이 읽는 표준 섹션이 모두 들어 있습니다. 파일명의 YYYY-MM-DD를 회차 날짜로, "
                                        "보고 기간과 각 섹션 내용을 고쳐 주간 보고 폴더에 넣으세요."),),
+    experimental=True,
 )

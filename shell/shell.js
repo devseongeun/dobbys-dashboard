@@ -1,4 +1,4 @@
-import { openOnboarding } from "./onboarding.js";
+import { labBadge, openOnboarding } from "./onboarding.js";
 import { frameUrl, parseShellHash, pickInitial, toShellHash } from "./route.js";
 import { CHECK_INTERVAL_MS, RESTART_POLL_MS, RESTART_TIMEOUT_MS, confirmMessage, restarted, updateLink, versionLine } from "./update_flow.js";
 import { dropAfter, moveItem, sameOrder } from "./order.js";
@@ -87,7 +87,7 @@ function buildNav() {
     const link = document.createElement("a");
     link.href = "#" + item.id;
     link.dataset.id = item.id;
-    link.title = item.label;
+    link.title = item.experimental ? `${item.label} (실험실)` : item.label;
     link.draggable = true;
     const icon = document.createElement("span");
     icon.className = "icon";
@@ -96,6 +96,7 @@ function buildNav() {
     const label = document.createElement("span");
     label.className = "label";
     label.textContent = item.label;
+    if (item.experimental) label.append(labBadge());
     link.append(icon, label);
     link.addEventListener("click", (event) => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;

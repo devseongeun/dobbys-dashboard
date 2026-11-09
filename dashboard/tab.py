@@ -52,11 +52,12 @@ class Tab:
     question: str = ""  # 첫 온보딩에서 묻는 불편 지점. 비면 셸이 "{label} 탭을 쓸까요?"로 묻는다.
     summary: str = ""  # 질문 아래 한 줄 설명: 예를 고르면 무엇을 보게 되는지.
     templates: tuple[Template, ...] = ()  # 형식이 정해진 문서를 처음 만들 때 쓰는 템플릿. 순번이 내려받기 주소다.
+    experimental: bool = False  # 실험 중인 기능. 셸이 사이드바·설정의 탭 이름 옆에 '실험실'을 붙인다.
 
     def describe(self) -> dict:
         return {
             "id": self.id, "label": self.label, "icon": self.icon, "src": f"/{self.id}/",
-            "question": self.question, "summary": self.summary,
+            "question": self.question, "summary": self.summary, "experimental": self.experimental,
             "fields": [
                 {"key": f.key, "label": f.label, "kind": f.kind, "required": f.required, "default": f.default, "help": f.help,
                  "options": [list(option) for option in f.options], "when": list(f.when) if f.when else None}

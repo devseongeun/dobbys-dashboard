@@ -32,6 +32,10 @@ function button(text, onClick, attrs = {}) {
   return node;
 }
 
+// 실험 중인 탭(describe 의 experimental) 이름 옆 표시. 사이드바(shell.js)와 탭 편집 화면이 같이 쓴다.
+export const labBadge = () => el("span", { class: "lab", text: "실험실" });
+const tabLabel = (tab) => el("span", { class: "label", text: tab.label }, tab.experimental ? labBadge() : "");
+
 // Finder 선택 창 결과. 취소하면 null, 실패하면 예외.
 async function pickPaths(kind, current) {
   const res = await fetch("/_dashboard/pick", {
@@ -189,7 +193,7 @@ function tabRow(state, tab, rerender) {
     else state.open.add(tab.id);
     rerender(`${tab.id}-head`);
   }, { class: "acc-head", "aria-expanded": open ? "true" : "false", "data-key": `${tab.id}-head` });
-  head.append(el("span", { class: "icon", text: tab.icon }), el("span", { class: "label", text: tab.label }),
+  head.append(el("span", { class: "icon", text: tab.icon }), tabLabel(tab),
     hasErrors(state.errors, tab.id) ? el("span", { class: "error", text: "오류" }) : "",
     el("span", { class: "chevron", "aria-hidden": "true", text: open ? "▴" : "▾" }));
   const toggle = button("", () => {

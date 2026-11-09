@@ -20,6 +20,8 @@ nav a.dragging { opacity: .4; }
 nav a.drop-before { box-shadow: 0 -2px 0 0 var(--acc); }
 nav a.drop-after { box-shadow: 0 2px 0 0 var(--acc); }
 .icon { flex: 0 0 20px; text-align: center; }
+.lab { margin-left: 6px; padding: 1px 6px; border: 1px solid currentColor; border-radius: 999px; font-size: 10px; font-weight: 600; color: var(--muted); vertical-align: 1px; }
+nav a[aria-current="page"] .lab { color: var(--acc); }
 .collapse { margin-top: 4px; align-self: flex-start; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: none; color: var(--muted); cursor: pointer; }
 body.collapsed .side { flex-basis: var(--side-min); }
 body.collapsed .label, body.collapsed .brand .text { display: none; }

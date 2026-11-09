@@ -71,7 +71,8 @@ class Updater:
             "branch": branch,
             "upstream": upstream,
             "current": self._git("rev-parse", "--short", "HEAD"),
-            "currentDate": self._git("log", "-1", "--format=%cs"),
+            # 사이드바 버전 줄. 커밋 시각을 이 맥의 시간대로 분까지 보인다.
+            "currentDate": self._git("log", "-1", "--date=format-local:%Y-%m-%d %H:%M", "--format=%cd"),
             "remote": self._git("rev-parse", "--short", "@{u}"),
             "behind": int(self._git("rev-list", "--count", "HEAD..@{u}")),
             "ahead": int(self._git("rev-list", "--count", "@{u}..HEAD")),

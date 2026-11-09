@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { confirmMessage, restarted, updateLink, versionLine } from "../../shell/update_flow.js";
 
-const base = { ok: true, behind: 0, ahead: 0, dirty: false, titles: [], current: "10ac8f8", currentDate: "2026-11-06",
+const base = { ok: true, behind: 0, ahead: 0, dirty: false, titles: [], current: "10ac8f8", currentDate: "2026-11-06 10:38",
   upstream: "origin/main", startedAt: "2026-11-06T10:38:57" };
 
 test("뒤처진 게 없거나 git 이 아니면 링크를 숨긴다", () => {
@@ -18,8 +18,8 @@ test("뒤처지면 건수와 제목 목록을 보이고, 막힌 이유를 따로
   expect(updateLink({ ...state, dirty: true }).title.startsWith("업데이트 2건 — ")).toBe(true);
 });
 
-test("버전 줄은 짧은 커밋과 날짜, git 이 아니면 빈 문자열", () => {
-  expect(versionLine(base)).toBe("10ac8f8 · 2026-11-06");
+test("버전 줄은 짧은 커밋과 커밋 시각, git 이 아니면 빈 문자열", () => {
+  expect(versionLine(base)).toBe("10ac8f8 · 2026-11-06 10:38");
   expect(versionLine({ ...base, ok: false })).toBe("");
 });
 

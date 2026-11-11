@@ -59,15 +59,31 @@ AI 브리핑을 내려 보고 초안 원문으로 바꾼다.
 
 ## 설치
 
+받을 저장소에 따라 명령이 다르다. 받은 저장소가 `origin`이 되므로, 이후 ⬆ 업데이트도 그 저장소에서 받는다.
+
+### GitHub에서 받기
+
 터미널에 한 줄을 붙여 넣는다.
 
 ```
 curl -fsSL https://raw.githubusercontent.com/devseongeun/dobbys-dashboard/main/scripts/install.sh | sh
 ```
 
-`scripts/install.sh`가 macOS·git(없으면 Command Line Tools 설치 창을 띄운다)·Python 3.11 이상(macOS 기본 `python3`는 3.9라 Homebrew·python.org 것을 찾는다)을 확인하고 `~/workspace/dobbys-dashboard`에 받는다. 그다음 **항상 실행할지** 묻는다. 예(기본)면 [상주 실행](#상주-실행)으로 등록해 로그인 때 켜지고, 아니요면 지금 터미널에서 띄운다. 어느 쪽이든 브라우저가 열린다. 이미 받아 둔 곳에서 다시 실행하면 최신으로 받고 같은 질문을 한다. 설치 위치는 `DOBBYS_DIR`, 포트는 `PORT`, 질문의 답은 `DOBBYS_ALWAYS=y|n`으로 미리 정한다.
+### 사내 scm에서 받기
 
-직접 받으려면:
+사내망(VPN)에서 터미널에 한 줄을 붙여 넣는다. scm은 로그인이 필요해 스크립트를 바로 받을 수 없으므로, 먼저 `git clone`으로 받은 뒤 그 안의 설치 스크립트를 실행한다. clone 중에 scm 계정(사용자 이름·비밀번호 또는 토큰)을 묻는다.
+
+```
+git clone http://10.255.17.161:8190/scm/api/v0/git/okestro/dobbys-dashboard.git ~/workspace/dobbys-dashboard && sh ~/workspace/dobbys-dashboard/scripts/install.sh
+```
+
+git이 없으면 clone 대신 Command Line Tools 설치 창이 뜬다. 설치가 끝나면 같은 명령을 다시 붙여 넣는다. 이미 받아 둔 뒤 다시 설치하려면 `sh ~/workspace/dobbys-dashboard/scripts/install.sh`만 실행한다.
+
+### 설치 스크립트가 하는 일
+
+`scripts/install.sh`가 macOS·git(없으면 Command Line Tools 설치 창을 띄운다)·Python 3.11 이상(macOS 기본 `python3`는 3.9라 Homebrew·python.org 것을 찾는다)을 확인하고 `~/workspace/dobbys-dashboard`에 받는다(scm은 이미 받아 둔 것을 쓴다). 그다음 **항상 실행할지** 묻는다. 예(기본)면 [상주 실행](#상주-실행)으로 등록해 로그인 때 켜지고, 아니요면 지금 터미널에서 띄운다. 어느 쪽이든 브라우저가 열린다. 이미 받아 둔 곳에서 다시 실행하면 최신으로 받고 같은 질문을 한다. 설치 위치는 `DOBBYS_DIR`, 포트는 `PORT`, 질문의 답은 `DOBBYS_ALWAYS=y|n`으로 미리 정한다.
+
+### 직접 받기
 
 ```
 git clone https://github.com/devseongeun/dobbys-dashboard.git ~/workspace/dobbys-dashboard

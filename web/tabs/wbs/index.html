@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WBS · Jira</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>WBS · Jira</h1>
+    <div class="sync">
+      <button id="refresh" class="f">⟳ 새로고침</button>
+      <span id="synced" class="dim"></span>
+      <span id="jirawho" class="dim"></span>
+    </div>
+  </header>
+
+  <div id="banner" class="banner hidden"></div>
+  <div id="jira" class="banner hidden"></div>
+  <div class="stats" id="stats"></div>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="cal">캘린더</button>
+    <button class="tab" role="tab" data-tab="plan">일정 조정</button>
+    <button class="tab" role="tab" data-tab="board">보드</button>
+    <button class="tab" role="tab" data-tab="issues">이슈</button>
+    <button class="tab" role="tab" data-tab="log">워크로그</button>
+  </nav>
+
+  <div class="ctl" id="filters"></div>
+  <div class="ctl" id="calctl"><button class="f" id="gotoday">오늘로</button></div>
+  <div class="ctl hidden" id="logctl">
+    <button class="f on" data-preset="week">이번 주</button>
+    <button class="f" data-preset="lastWeek">지난 주</button>
+    <button class="f" data-preset="month">이번 달</button>
+    <input type="date" id="from"><span class="dim">~</span><input type="date" id="to">
+  </div>
+
+  <main id="panel" role="tabpanel"><p class="empty">불러오는 중…</p></main>
+  <div class="ovl" id="ovl"><div class="modal" id="modal"></div></div>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

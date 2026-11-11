@@ -19,13 +19,13 @@ sys.path.insert(0, str(REPO))
 
 import dashboard.keychain  # noqa: E402
 from dashboard.paths import HOME  # noqa: E402
-from tabs.wbs.jira import JiraClient, JiraError  # noqa: E402
+from jira_client import JiraClient, JiraError  # noqa: E402
 
 MOCK = HOME / "demo-jira.json"
 if not MOCK.is_file():
     sys.exit(f"{MOCK} 가 없다. HOME 을 scripts/demo/mock_data.py 로 만든 임시 폴더로 지정한다.")
 JIRA = json.loads(MOCK.read_text(encoding="utf-8"))
-# 일정 조정 탭의 키 조회 JQL 은 'key in (…)' 으로 시작한다(tabs/wbs/jira.py build_key_jql).
+# 일정 조정 탭의 키 조회 JQL 은 'key in (…)' 으로 시작한다(jira_client.py build_key_jql).
 # 담당 이슈 조회 JQL 안의 'OR key in (…)'(수동 연결 이슈)과 헷갈리지 않게 맨 앞만 본다.
 KEYS_IN = re.compile(r"key in \(([^)]*)\)")
 

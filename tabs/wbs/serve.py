@@ -14,7 +14,7 @@ from pathlib import Path
 
 from dashboard.keychain import KeychainError
 
-from .jira import KEY_RE, JiraError
+from jira_client import KEY_RE, JiraError
 from .matching import match_keys
 from .store import read_json, write_json
 

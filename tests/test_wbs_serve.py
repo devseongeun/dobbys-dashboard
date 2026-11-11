@@ -6,7 +6,7 @@ from pathlib import Path
 
 from dashboard.keychain import KeychainError
 from tabs.wbs.board import BoardService
-from tabs.wbs.jira import JiraError
+from jira_client import JiraError
 from tabs.wbs.serve import make_handler
 from tabs.wbs.store import MapStore
 from tests.support import request, send_json, serve_handler

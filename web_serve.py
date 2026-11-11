@@ -32,6 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer  # noqa: E40
 from pathlib import Path  # noqa: E402
 from urllib.parse import parse_qs, unquote, urlsplit  # noqa: E402
 
+import api.jira  # noqa: E402
 import api.version  # noqa: E402
 from api._http import Request, Response  # noqa: E402
 
@@ -39,9 +40,10 @@ REPO_ROOT = Path(__file__).resolve().parent
 WEB_ROOT = REPO_ROOT / "web"
 MAX_BODY = 64 * 1024
 
-# /api/<이름> → 모듈. 모르는 이름은 404. wbs-web 이 "jira" 를 더한다.
+# /api/<이름> → 모듈. 모르는 이름은 404.
 API_ROUTES = {
     "version": api.version,
+    "jira": api.jira,  # 웹 wbs 탭의 Jira Cloud 조회 전달(허용 규칙은 api/jira.py)
 }
 
 # 웹 정적 루트(web/) 밖이지만 웹이 함께 쓰는 파일. 로컬판과 같은 파일을 복사하지 않고 이 목록의 경로로만 연다.

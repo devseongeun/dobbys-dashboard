@@ -5,7 +5,7 @@ from pathlib import Path
 
 from dashboard.keychain import KeychainError
 from tabs.wbs.board import BoardService, normalize_issue, normalize_worklog
-from tabs.wbs.jira import JiraError, build_jql
+from jira_client import JiraError, build_jql
 
 ACCOUNT = "acc-1"
 

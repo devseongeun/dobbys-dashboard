@@ -3,7 +3,7 @@
 set -eu
 LABEL=com.dobbys-dashboard
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-PYTHON="$(command -v python3)"
+PYTHON="${PYTHON:-$(command -v python3)}"
 PORT="${PORT:-8787}"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOGS="$HOME/Library/Logs/dobbys-dashboard"

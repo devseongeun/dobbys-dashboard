@@ -59,6 +59,16 @@ AI 브리핑을 내려 보고 초안 원문으로 바꾼다.
 
 ## 설치
 
+터미널에 한 줄을 붙여 넣는다.
+
+```
+curl -fsSL https://raw.githubusercontent.com/devseongeun/dobbys-dashboard/main/scripts/install.sh | sh
+```
+
+`scripts/install.sh`가 macOS·git(없으면 Command Line Tools 설치 창을 띄운다)·Python 3.11 이상(macOS 기본 `python3`는 3.9라 Homebrew·python.org 것을 찾는다)을 확인하고 `~/workspace/dobbys-dashboard`에 받는다. 그다음 **항상 실행할지** 묻는다. 예(기본)면 [상주 실행](#상주-실행)으로 등록해 로그인 때 켜지고, 아니요면 지금 터미널에서 띄운다. 어느 쪽이든 브라우저가 열린다. 이미 받아 둔 곳에서 다시 실행하면 최신으로 받고 같은 질문을 한다. 설치 위치는 `DOBBYS_DIR`, 포트는 `PORT`, 질문의 답은 `DOBBYS_ALWAYS=y|n`으로 미리 정한다.
+
+직접 받으려면:
+
 ```
 git clone https://github.com/devseongeun/dobbys-dashboard.git ~/workspace/dobbys-dashboard
 cd ~/workspace/dobbys-dashboard && python3 serve.py
@@ -85,7 +95,7 @@ cd ~/workspace/dobbys-dashboard && python3 serve.py
 
 ## 상주 실행
 
-`scripts/install-launchd.sh`를 실행하면 로그인 때 대시보드를 띄우고, 죽으면 다시 띄운다. 다시 실행하면 등록을 갈아끼운다.
+`scripts/install-launchd.sh`를 실행하면 로그인 때 대시보드를 띄우고, 죽으면 다시 띄운다. 다시 실행하면 등록을 갈아끼운다. Python은 `PATH`의 `python3`를 쓰고, 다른 것을 쓰려면 `PYTHON=<경로>`로 준다(한 줄 설치는 찾은 3.11 이상을 넘긴다).
 
 - 재시작: `launchctl kickstart -k gui/$(id -u)/com.dobbys-dashboard`
 - 중지: `launchctl bootout gui/$(id -u)/com.dobbys-dashboard`

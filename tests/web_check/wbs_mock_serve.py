@@ -4,6 +4,8 @@
 - 검사를 통과한 요청만 api.jira.fetch 대신 <sandbox>/demo-jira.json(scripts/demo/mock_data.py 가 만든다)으로 답한다.
   token 이 'bad' 면 Jira 401, 그 밖은 아무 이메일·token 이나 통과. 네트워크에는 나가지 않는다.
 - 목업이 받은 Jira 경로는 표준 오류로 한 줄씩 남긴다(경로만. Authorization·token 은 남기지 않는다).
+- 확인 전용 경로 `/api/check-file` 이 예제 엑셀(<sandbox>/DemoVault/DEMO_100/DEMO_WBS.xlsx)을 준다. 페이지가 받아
+  opfs_picker.js 로 OPFS 에 넣는다(실제 web_serve.py 에는 없는 경로다).
 
 사용:
   python3 scripts/demo/mock_data.py <sandbox>
@@ -24,12 +26,13 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
 import api.jira  # noqa: E402
-from api._http import Request  # noqa: E402
+from api._http import Request, Response  # noqa: E402
 
 USAGE = "사용: python3 tests/web_check/wbs_mock_serve.py <sandbox> [--self-check]"
 # 담당 이슈 JQL 안의 'OR key in (…)' 과 헷갈리지 않게 맨 앞만 본다(scripts/demo/serve_demo.py 와 같은 규칙).
 KEYS_IN = re.compile(r"key in \(([^)]*)\)")
 JIRA: dict = {}
+WORKBOOK: list[Path] = []
 
 
 def load(sandbox: Path) -> None:
@@ -37,6 +40,7 @@ def load(sandbox: Path) -> None:
     if not mock.is_file():
         sys.exit(f"{mock} 가 없다. 먼저 python3 scripts/demo/mock_data.py {sandbox} 를 돌린다.")
     JIRA.update(json.loads(mock.read_text(encoding="utf-8")))
+    WORKBOOK.append(sandbox / "DemoVault" / "DEMO_100" / "DEMO_WBS.xlsx")
 
 
 def _token(authorization: str) -> str:
@@ -71,6 +75,12 @@ def mock_fetch(url: str, authorization: str) -> tuple[int, bytes]:
     return 200, json.dumps(body, ensure_ascii=False).encode("utf-8")
 
 
+class CheckFile:
+    @staticmethod
+    def handle(request: Request) -> Response:
+        return Response(200, {"Content-Type": "application/octet-stream", "Cache-Control": "no-store"}, WORKBOOK[0].read_bytes())
+
+
 def self_check() -> int:
     auth = "Basic " + base64.b64encode(b"dobby@example.com:demo-token").decode()
     bad = "Basic " + base64.b64encode(b"dobby@example.com:bad").decode()
@@ -102,6 +112,7 @@ def main(argv: list[str]) -> int:
     if len(argv) == 2:
         return self_check()
     import web_serve  # web_serve 가 api.jira 를 import 해도 같은 모듈 객체라 목업이 그대로 쓰인다.
+    web_serve.API_ROUTES["check-file"] = CheckFile
     return web_serve.main()
 
 

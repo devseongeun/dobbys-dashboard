@@ -1,15 +1,14 @@
 """WBS·Jira 탭. 일정 기준을 고른다: WBS 엑셀 기준(내 행이 기본, Jira 에 로그인하면 Jira 값이 우선) 또는 Jira 기준(엑셀 없이 내 담당 이슈만)."""
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from dashboard.dispatch import Mount
 from dashboard.paths import CACHE_ROOT
 from dashboard.tab import Field, Tab
+from jira_client import DOMAIN_RE, PROJECT_RE
 
 DEFAULT_SHEET = "TROMBONE_v4.0.0_WBS(작업)"
-DOMAIN_RE = re.compile(r"^[a-z0-9.-]+\.[a-z]{2,}$")
 WBS, JIRA = "wbs", "jira"
 
 
@@ -30,7 +29,6 @@ def clean_domain(raw: str) -> str:
 
 
 def _validate(settings: dict) -> dict[str, str]:
-    from .jira import PROJECT_RE
     from .xlsx import XlsxError, read_wbs
 
     errors = {}

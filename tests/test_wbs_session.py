@@ -1,6 +1,6 @@
 import unittest
 
-from tabs.wbs.jira import JiraError
+from jira_client import JiraError
 from tabs.wbs.session import JiraSession
 from tests.support import MemoryKeychain
 

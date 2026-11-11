@@ -8,7 +8,7 @@ from typing import Callable
 
 from dashboard.keychain import KeychainError
 
-from .jira import FIELDS, KEY_RE, LOOKUP_FIELDS, JiraError, adf_to_text, build_jql, build_key_jql
+from jira_client import FIELDS, KEY_RE, LOOKUP_FIELDS, JiraError, adf_to_text, build_jql, build_key_jql
 
 TTL_SECONDS = 120
 

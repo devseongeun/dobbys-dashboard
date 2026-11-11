@@ -1,7 +1,7 @@
 """Jira 로그인 상태. 이메일·API token 은 키체인(dobbys-dashboard.jira)에만 둔다."""
 from __future__ import annotations
 
-from .jira import JiraClient, JiraConfig
+from jira_client import JiraClient, JiraConfig
 
 KEY = "jira"
 

@@ -1,6 +1,6 @@
 import unittest
 
-from tabs.wbs.jira import JiraClient, JiraConfig, JiraError
+from jira_client import JiraClient, JiraConfig, JiraError
 
 CONFIG = JiraConfig(base_url="https://example.atlassian.net", email="a@b.c", token="T")
 

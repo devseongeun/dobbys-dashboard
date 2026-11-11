@@ -1,6 +1,6 @@
 import unittest
 
-from tabs.wbs.jira import LOOKUP_LIMIT, JiraConfig, adf_to_text, build_jql, build_key_jql
+from jira_client import LOOKUP_LIMIT, JiraConfig, adf_to_text, build_jql, build_key_jql
 
 
 class BuildJqlTest(unittest.TestCase):

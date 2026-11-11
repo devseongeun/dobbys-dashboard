@@ -1,4 +1,8 @@
-"""Jira Cloud REST v3 클라이언트. 검색은 /rest/api/3/search/jql 만 쓴다."""
+"""Jira Cloud REST v3 클라이언트. 검색은 /rest/api/3/search/jql 만 쓴다.
+
+로컬판 wbs 탭(tabs/wbs)과 웹 프록시(api/jira.py)가 함께 쓴다. 그래서 tabs 패키지 밖에 두고
+표준 라이브러리만 import 한다(tabs/__init__.py 가 여섯 탭과 dashboard.* 를 끌고 오지 않게).
+"""
 
 import base64
 import json
@@ -23,6 +27,8 @@ LOOKUP_LIMIT = 50
 
 
 PROJECT_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
+# Jira 도메인(https:// 와 끝 / 를 뗀 소문자). 설정 검사와 웹 프록시 대상 검사가 같이 쓴다.
+DOMAIN_RE = re.compile(r"^[a-z0-9.-]+\.[a-z]{2,}$")
 ACCOUNT_RE = re.compile(r"^[A-Za-z0-9:_-]+$")
 
 

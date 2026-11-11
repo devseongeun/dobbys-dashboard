@@ -292,6 +292,46 @@ describe("MapStore·DraftStore (store.py · PUT api/drafts)", () => {
     expect(await store.load()).toEqual({ A: "완료", B: "취소" });
   });
 
+  // 리뷰 지적(P1): 큐가 인스턴스별이면 두 인스턴스가 같은 {} 를 읽고 각자 써서 앞 저장이 사라졌다.
+  test("두 인스턴스가 동시에 써도 모두 남는다(같은 페이지의 두 MapStore)", async () => {
+    for (const name of ["links", "status-assign"]) {
+      const state = memoryState();
+      const a = new MapStore(state, name);
+      const b = new MapStore(state, name);
+      await Promise.all(Array.from({ length: 20 }, (_, i) => (i % 2 ? a : b).set(`K${i}`, `V${i}`)));
+      expect(Object.keys(await a.load()).length).toBe(20);
+    }
+  });
+
+  // 다른 창·탭은 Web Locks 로 막는다. 브라우저처럼 이름별로 하나씩 들여보내는 가짜 locks 를 두 '탭'이 같이 쓴다.
+  test("navigator.locks 가 있으면 탭·키 이름으로 잠그고 동시 저장이 모두 남는다", async () => {
+    const names = [];
+    const held = new Map();
+    const locks = {
+      request(name, options, work) {
+        names.push([name, options.mode]);
+        const run = (held.get(name) ?? Promise.resolve()).then(() => work());
+        held.set(name, run.catch(() => {}));
+        return run;
+      },
+    };
+    const state = memoryState();
+    const tab1 = new MapStore(state, "links", { locks });
+    const tab2 = new MapStore(state, "links", { locks });
+    await Promise.all(Array.from({ length: 20 }, (_, i) => (i % 2 ? tab1 : tab2).set(`K${i}`, `V${i}`)));
+    expect(Object.keys(await tab1.load()).length).toBe(20);
+    expect(new Set(names.map(([n, m]) => `${n} ${m}`))).toEqual(new Set(["dobbys-dashboard/wbs/links exclusive"]));
+  });
+
+  test("잠금 안에서 실패해도 다음 저장은 진행된다", async () => {
+    const state = memoryState({ links: "{broken" });
+    const store = new MapStore(state, "links");
+    const first = store.set("A", "PROJ-1");
+    await expect(first).rejects.toThrow("덮어쓰지 않는다");
+    state.data.delete("links");
+    expect(await new MapStore(state, "links").set("B", "PROJ-2")).toEqual({ B: "PROJ-2" });
+  });
+
   test("초안은 {이슈키: {...}} 객체만, 256 KiB 이하", async () => {
     const state = memoryState();
     const drafts = new DraftStore(state);

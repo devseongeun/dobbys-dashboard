@@ -4,10 +4,13 @@
 IndexedDB 에 둔다. 이 서버는 정적 셸(`web/`)과 `/api/<이름>` 프록시만 준다. 파일 내용은 서버로 오지 않는다.
 
 - 정적 파일: `web/` 아래만(경로 탈출·숨김 파일 거절). 웹 정적 루트 밖에서 함께 쓰는 파일은 `SHARED_FILES` 명시 목록만 준다.
+  폴더의 index.html·공유 파일까지 실제로 열 파일의 경로를 resolve 해 루트(web/·저장소) 안일 때만 준다(심볼릭 링크로 밖을 가리키면 404).
 - `/api/<이름>`: `API_ROUTES` 에 등록한 `api/<이름>.py` 의 `handle(Request) -> Response`. Origin 이 있으면 ALLOWED_ORIGINS 와
   같아야 하고 `X-Dobbys-Proxy: 1` 헤더가 있어야 한다(없으면 403). 본문은 64 KiB 까지.
-- 모든 요청: Host 가 ALLOWED_ORIGINS 의 host[:port] 가 아니면 421. 모든 응답에 CSP·nosniff·Referrer-Policy.
-- 로그: 메서드·경로(쿼리 없음)·상태만 남긴다. 쿼리·헤더(Authorization 등)는 남기지 않는다.
+- 모든 요청: Host 가 ALLOWED_ORIGINS 의 host[:port] 가 아니면 421. 모든 응답(표준 라이브러리의 400·501 오류 포함)에
+  CSP·nosniff·Referrer-Policy.
+- 로그: 메서드·경로(쿼리 없음)·상태만 남긴다. 쿼리·헤더(Authorization 등)는 남기지 않는다. api 모듈 오류는 예외 종류만,
+  DOBBYS_DEBUG=1 이면 위치(파일:줄 함수)까지. 예외 문구는 요청 값이 섞일 수 있어 어느 쪽에서도 남기지 않는다.
 
 사용:
   python3 web_serve.py                                   # http://127.0.0.1:8788/
@@ -97,30 +100,46 @@ def allowed_hosts(origins: list[str]) -> frozenset[str]:
     return frozenset(hosts)
 
 
-def static_target(web_root: Path, shared: dict[str, Path], rel: str) -> Path | None:
-    """URL 경로(앞 `/` 없음, 디코드됨) → 줄 파일. web_root 밖·숨김 조각·NUL 은 None."""
+def inside(root: Path, path: Path) -> Path | None:
+    """path 를 resolve(심볼릭 링크를 끝까지 따라감)한 결과가 root(resolve 된 것) 안이고 숨김 조각이 없으면 그 경로."""
+    try:
+        target = path.resolve()
+    except (OSError, ValueError):
+        return None
+    if not target.is_relative_to(root) or any(p.startswith(".") for p in target.relative_to(root).parts):
+        return None
+    return target
+
+
+def index_file(web_root: Path, folder: Path) -> Path | None:
+    """폴더의 index.html. 링크라면 가리키는 실제 파일도 web_root 안이어야 한다."""
+    target = inside(web_root, folder / "index.html")
+    return target if target is not None and target.is_file() else None
+
+
+def static_target(web_root: Path, shared: dict[str, Path], rel: str, shared_root: Path | None = None) -> Path | None:
+    """URL 경로(앞 `/` 없음, 디코드됨) → 줄 파일(폴더면 폴더). web_root 밖·숨김 조각·NUL 은 None.
+    공유 파일은 resolve 한 경로가 shared_root(기본 저장소 루트) 안일 때만."""
     if rel in shared:
-        target = shared[rel]
-        return target if target.is_file() else None
+        target = inside((shared_root or REPO_ROOT).resolve(), shared[rel])
+        return target if target is not None and target.is_file() else None
     if "\x00" in rel or "\\" in rel:
         return None
     parts = [p for p in rel.split("/") if p]
     if any(p.startswith(".") for p in parts):
         return None
-    try:
-        target = (web_root / Path(*parts)).resolve() if parts else web_root
-    except (OSError, ValueError):
-        return None
-    if not target.is_relative_to(web_root):
+    target = inside(web_root, web_root / Path(*parts)) if parts else web_root
+    if target is None:
         return None
     if target.is_dir():
-        return target  # 부르는 쪽이 index.html·슬래시 리다이렉트를 정한다
+        return target  # 부르는 쪽이 index_file()·슬래시 리다이렉트를 정한다
     return target if target.is_file() else None
 
 
 def make_handler(web_root: Path = WEB_ROOT, origins: list[str] | None = None, routes: dict | None = None,
-                 shared: dict[str, Path] | None = None, log=sys.stderr):
+                 shared: dict[str, Path] | None = None, log=sys.stderr, shared_root: Path = REPO_ROOT):
     web_root = Path(web_root).resolve()
+    shared_root = Path(shared_root).resolve()
     origins = list(origins if origins is not None else default_origins(8788))
     hosts = allowed_hosts(origins)
     routes = dict(API_ROUTES if routes is None else routes)
@@ -143,6 +162,12 @@ def make_handler(web_root: Path = WEB_ROOT, origins: list[str] | None = None, ro
         def log_error(self, fmt, *args):
             return
 
+        # 보안 헤더는 여기서 붙인다. _send 뿐 아니라 표준 라이브러리 send_error(400·414·501 등)도 이 길을 지난다.
+        def end_headers(self):
+            for name, value in SECURITY_HEADERS:
+                self.send_header(name, value)
+            super().end_headers()
+
         def _send(self, status: int, body: bytes = b"", headers: dict | None = None):
             self.send_response(status)
             sent = {k.lower() for k in (headers or {})}
@@ -152,8 +177,6 @@ def make_handler(web_root: Path = WEB_ROOT, origins: list[str] | None = None, ro
                 self.send_header(name, value)
             if "cache-control" not in sent:
                 self.send_header("Cache-Control", "no-cache")
-            for name, value in SECURITY_HEADERS:
-                self.send_header(name, value)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             if self.command != "HEAD":
@@ -187,14 +210,13 @@ def make_handler(web_root: Path = WEB_ROOT, origins: list[str] | None = None, ro
 
         def _static(self, path: str):
             rel = path.lstrip("/")
-            target = static_target(web_root, shared, rel)
+            target = static_target(web_root, shared, rel, shared_root)
             if target is not None and target.is_dir():
                 if rel and not rel.endswith("/"):
                     # 상대 Location 이라 하위 경로(/dashboard/…)에 올라가도 맞게 풀린다.
                     self._send(301, b"", {"Location": rel.rsplit("/", 1)[-1] + "/"})
                     return
-                target = target / "index.html"
-                target = target if target.is_file() else None
+                target = index_file(web_root, target)
             if target is None:
                 self._json(404, {"error": "not found"})
                 return
@@ -233,10 +255,12 @@ def make_handler(web_root: Path = WEB_ROOT, origins: list[str] | None = None, ro
             request = Request(self.command, path, parse_qs(query, keep_blank_values=True), self.headers, body)
             try:
                 response: Response = module.handle(request)
-            except Exception as exc:  # 모듈 오류의 내용(요청 값이 섞일 수 있다)은 응답·로그에 싣지 않는다.
+            except Exception as exc:  # 모듈 오류의 문구(요청 값이 섞일 수 있다)는 응답·로그에 싣지 않는다.
                 log.write(f"api {name} 오류: {type(exc).__name__}\n")
-                if os.environ.get("DOBBYS_DEBUG") == "1":
-                    traceback.print_exc(file=log)
+                if os.environ.get("DOBBYS_DEBUG") == "1":  # 디버그도 위치(파일:줄 함수)만. 소스 줄·예외 문구는 없다.
+                    for frame in traceback.extract_tb(exc.__traceback__):
+                        log.write(f"  {frame.filename}:{frame.lineno} {frame.name}\n")
+                log.flush()
                 self._json(500, {"error": "서버 오류"})
                 return
             self._send(response.status, response.body, response.headers)

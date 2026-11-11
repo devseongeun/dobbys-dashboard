@@ -37,6 +37,9 @@ const FIXTURE = {
   "2026-11-04 done.md": "---\nstatus: done\nprogress: 1_0\nfeature: A, B\nupdated: 어제\n---\n- [x] 끝\n",
   "2026-11-05 보류.md": "---\nstatus: 보류\nprogress: 반쯤\n---\n",
   "2026-11-05 nan.md": "---\nstatus: 완료\nprogress: nan\nfeature: A\n---\n",
+  "2026-11-05 전각 숫자.md": "---\nstatus: 진행중\nprogress: ５０%\nfeature: A\n---\n",
+  "2026-11-05 아라비아 숫자.md": "---\nstatus: 진행중\nprogress: \u0663\u0667.\u0665\nfeature: A\n---\n",
+  "2026-11-05 전각 퍼센트.md": "---\nstatus: 진행중\nprogress: ５０％\nfeature: A\n---\n",
   "2026-10-19 인계.md": "# 인계\n\n- [ ] 남은 일\n",
   "2026-10-19 열린머리.md": "---\nstatus: 완료\n# 제목\n",
   "2026-10-20 crlf.md": "---\r\nstatus: 완료\r\nfeature: A\r\n---\r\n- [ ] 남음\r\n",
@@ -153,6 +156,9 @@ describe("로컬판 test_plans_index.py 와 같은 입력·기대값", () => {
     expect([roundHalfEven(2.5), roundHalfEven(3.5), roundHalfEven(-0.5), roundHalfEven(12.51)]).toEqual([2, 4, 0, 13]);
     expect([pyFloat(" 12 "), pyFloat("1_0"), pyFloat("1e2"), pyFloat(".5")]).toEqual([12, 10, 100, 0.5]);
     expect([pyFloat("nan"), pyFloat("inf"), pyFloat("1__0"), pyFloat("")].every(Number.isNaN)).toBe(true);
+    // Python float() 은 유니코드 십진 숫자(전각·아라비아-인도·수학 굵은 숫자)도 읽는다.
+    expect([pyFloat("５０"), pyFloat("\u0663\u0667.\u0665"), pyFloat("\u{1D7D7}\u{1D7CE}"), pyFloat("１_０")]).toEqual([50, 37.5, 90, 10]);
+    expect(read("2026-10-19 e.md", "---\nstatus: 진행중\nprogress: ５０%\n---\n").progress).toBe(50);
   });
 
   test("feature 표기는 한 목록으로(P11)", () => {

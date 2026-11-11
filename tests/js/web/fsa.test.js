@@ -7,6 +7,7 @@ import { copyButtonFor, copyPathFor } from "../../../web/tabs/plans/copy_path.js
 import { PREFIX, clearSecret, getSecret, setSecret } from "../../../web/lib/secrets.js";
 import { apiFetch, apiUrl } from "../../../web/lib/api.js";
 import { obsidian, planName, splitFrontmatter } from "../../../web/tabs/plans/viewer.js";
+import { keepAttr, safeUrl, sanitize, tagPolicy } from "../../../web/tabs/plans/sanitize.js";
 import { dirHandle, tempFolder, write } from "./support.js";
 
 const saved = { ...globalThis };
@@ -154,4 +155,79 @@ test("뷰어: 폴더 바로 아래 .md 만 연다(P35), frontmatter·위키링�
   for (const name of ["부속/report.md", ".hidden.md", "notes.txt", "../x.md", "..", "", "부속\\report.md"]) expect(planName(name)).toBe(false);
   expect(splitFrontmatter("---\nstatus: 완료\n---\n# 제목")).toEqual({ meta: { status: "완료" }, body: "# 제목" });
   expect(obsidian("[[a.md|별칭]] ![[img.png]]\n```\n[[그대로]]\n```")).toBe('별칭 <span class="embed">[이미지: img.png]</span>\n```\n[[그대로]]\n```');
+});
+
+test("뷰어: 임베드 이름은 escape 한다", () => {
+  expect(obsidian('![[<img src=x onerror=alert(1)>.png]]')).toBe('<span class="embed">[이미지: &lt;img src=x onerror=alert(1)&gt;.png]</span>');
+  expect(obsidian("![[a&\"'.png]]")).toBe('<span class="embed">[이미지: a&amp;&quot;&#39;.png]</span>');
+});
+
+test("뷰어 정제 규칙: form·iframe·object·embed 는 버리고, 체크박스 말고 input 도 버린다", () => {
+  for (const tag of ["form", "iframe", "object", "embed", "script", "style", "svg", "math", "button", "textarea", "select", "base", "meta", "link", "template", "noscript"]) {
+    expect(tagPolicy(tag)).toBe("drop");
+  }
+  expect(tagPolicy("INPUT", "checkbox")).toBe("keep");
+  for (const type of ["", "text", "submit", "image", "password"]) expect(tagPolicy("input", type)).toBe("drop");
+  for (const tag of ["p", "a", "img", "table", "td", "code", "pre", "span", "details"]) expect(tagPolicy(tag)).toBe("keep");
+  for (const tag of ["center", "font", "marquee", "custom-el"]) expect(tagPolicy(tag)).toBe("unwrap");
+});
+
+test("뷰어 정제 규칙: 주소는 상대·#·http(s)·mailto 만, 이미지는 http(s)·data:image 만", () => {
+  for (const ok of ["#x", "a.md", "2026-11-01 계획.md#절", "sub/x.md", "?q=1", "https://x.test/", "HTTP://x", "mailto:a@b.test"]) expect(safeUrl(ok)).toBe(true);
+  for (const bad of ["javascript:alert(1)", " JavaScript:alert(1)", "java\tscript:x", "java\nscript:x", "\x01javascript:x", "vbscript:x", "data:text/html,x", "file:///etc/passwd", "blob:x", "x:y"]) {
+    expect(safeUrl(bad)).toBe(false);
+  }
+  expect(safeUrl("data:image/png;base64,AA", "img")).toBe(true);
+  expect(safeUrl("data:image/svg+xml;base64,AA", "img")).toBe(false);
+  expect(safeUrl("mailto:a@b.test", "img")).toBe(false);
+  expect(keepAttr("a", "href", "https://x.test")).toBe(true);
+  expect(keepAttr("a", "href", "javascript:x")).toBe(false);
+  for (const name of ["onclick", "onerror", "style", "id", "name", "formaction", "srcdoc", "target"]) expect(keepAttr("a", name, "x")).toBe(false);
+  expect(keepAttr("td", "align", "center")).toBe(true);
+  expect(keepAttr("input", "checked", "")).toBe(true);
+  expect(keepAttr("span", "class", "embed")).toBe(true);
+});
+
+// sanitize() 가 트리를 걷는 방식만 보는 작은 노드 모형. 실제 DOM(<template>)은 격리 서버 Chrome 에서 본다.
+class FakeText { constructor(text) { this.nodeType = 3; this.text = text; } remove() { this.parent.childNodes.splice(this.parent.childNodes.indexOf(this), 1); } }
+class FakeEl {
+  constructor(localName, attrs = {}, children = [], nodeType = 1) {
+    Object.assign(this, { localName, nodeType, attrs: { ...attrs }, childNodes: [] });
+    for (const child of children) { child.parent = this; this.childNodes.push(child); }
+  }
+  get attributes() { return Object.entries(this.attrs).map(([name, value]) => ({ name, value })); }
+  getAttribute(name) { return this.attrs[name] ?? null; }
+  removeAttribute(name) { delete this.attrs[name]; }
+  remove() { FakeText.prototype.remove.call(this); }
+  replaceWith(...nodes) {
+    const list = this.parent.childNodes;
+    list.splice(list.indexOf(this), 1, ...nodes);
+    for (const node of nodes) node.parent = this.parent;
+  }
+  get html() {
+    if (this.nodeType !== 1) return "";
+    const attrs = Object.entries(this.attrs).map(([k, v]) => ` ${k}="${v}"`).join("");
+    const inner = this.childNodes.map((c) => (c instanceof FakeText ? c.text : c.html)).join("");
+    return this.localName === "#root" ? inner : `<${this.localName}${attrs}>${inner}</${this.localName}>`;
+  }
+}
+
+test("뷰어 정제: 버릴 태그는 내용째, 모르는 태그는 벗기고, 속성은 허용 목록만 남긴다", () => {
+  const el = (tag, attrs, ...kids) => new FakeEl(tag, attrs, kids);
+  const t = (text) => new FakeText(text);
+  const root = el("#root", {},
+    el("p", { id: "back", style: "position:fixed", onclick: "x" }, t("글 "), el("a", { href: "javascript:alert(1)", title: "t" }, t("링크"))),
+    el("form", { action: "https://evil.test" }, el("input", { type: "password" }), t("비번")),
+    el("iframe", { src: "https://evil.test" }),
+    el("ul", {}, el("li", {}, el("input", { type: "checkbox", checked: "", disabled: "", name: "n" }), t("할 일"))),
+    el("center", {}, el("object", { data: "x" }), el("b", {}, t("굵게"))),
+    new FakeEl("#comment", {}, [], 8),
+    el("img", { src: "https://x.test/a.png", onerror: "x", alt: "a" }),
+    el("a", { href: "a.md" }, t("계획")),
+  );
+  sanitize(root);
+  expect(root.html).toBe(
+    '<p>글 <a title="t">링크</a></p><ul><li><input type="checkbox" checked="" disabled=""></input>할 일</li></ul>'
+    + '<b>굵게</b><img src="https://x.test/a.png" alt="a"></img><a href="a.md">계획</a>',
+  );
 });

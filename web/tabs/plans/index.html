@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>구현 진행 현황</title>
+<link rel="stylesheet" href="plans.css">
+</head>
+<body data-shell="plans">
+<div class="wrap">
+  <header class="top">
+    <div class="title">
+      <h1 id="title">구현 진행 현황</h1>
+      <input type="search" id="q" placeholder="전체 검색 (할 일·진행 중·완료·참고)">
+    </div>
+    <div class="sync">
+      <span id="synced" class="dim"></span>
+      <button id="refresh" class="f">⟳ 새로고침</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner hidden"></div>
+  <div class="stats" id="stats"></div>
+
+  <nav class="tabs" role="tablist" id="tabs"></nav>
+  <div class="ctl" id="filters"></div>
+
+  <main id="main"><div id="panels"></div><p class="empty" id="nores" hidden>할 일·진행 중·완료·참고 어디에도 맞는 계획이 없다.</p></main>
+  <p class="dim src" id="src"></p>
+</div>
+<script type="module" src="plans.js"></script>
+</body>
+</html>

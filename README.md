@@ -171,6 +171,38 @@ cd ~/workspace/dobbys-dashboard && python3 serve.py
   - 예전 `YYYY-MM-DD 이름.canvas` 파일도 그대로 업무로 읽힌다(목록에 날짜가 함께 보인다). 업무 이름 바꾸기 칸에서 앞 날짜를 지우면 된다. 날짜 없이 `11/3 ①`처럼 적은 그룹은 날짜 정렬에서 뒤로 간다.
 - **주간 보고 (실험실)**: 실험 중인 탭이라 형식·화면이 바뀔 수 있다. 폴더 여러 개를 쓸 수 있다. AI 브리핑은 초안의 표준 섹션(보고 기간·이번 주 핵심 업무·업무별 상세 내용·정량 지표·금주/차주 주요 사항·이슈 및 기타 사항·PPT 붙여넣기용·출처 및 검증·PPT 처리)을 찾아 배치한다. 섹션별 쓰는 법은 뷰어의 `표준 섹션 안내`에서 보고, 템플릿은 그 창이나 온보딩·⚙ 설정에서 내려받는다: `tabs/weekly/templates/`. Claude Code를 쓰면 [팀 공용 스킬](#팀-공용-claude-code-스킬) `weekly-report-draft`가 같은 형식으로 초안을 쓴다.
 
+## 웹 버전(사내 서버용)
+
+로컬판(`serve.py`, launchd)과 따로 도는 브라우저용 판이다. 사내 공용 서버에 올려 팀원이 설치 없이 쓴다. 로그인은 없다. 1단계 탭은 구현 진행 현황(plans)이고 WBS·Jira 는 따로 더한다.
+
+- **파일은 서버로 가지 않는다.** 브라우저가 File System Access API 로 고른 폴더·파일을 직접 읽는다. 서버(`web_serve.py`)는 정적 화면(`web/`)과 `/api/<이름>` 프록시만 준다.
+- **Chrome·Edge 전용.** Firefox·Safari 는 폴더 선택을 지원하지 않아 첫 화면에 안내만 뜬다.
+- **HTTPS 가 필요하다.** 브라우저는 보안 출처에서만 폴더 선택 창을 연다. `http://localhost`·`http://127.0.0.1` 은 예외라 내 PC 에서 띄워 볼 때는 HTTP 로 된다.
+- **로컬판과 따로 저장된다.** 설정·순서·탭 상태는 브라우저 IndexedDB(`dobbys-dashboard`), 비밀값(Jira token)은 브라우저 sessionStorage(‘이 브라우저에 기억’이면 localStorage)에 둔다. `~/.config/dobbys-dashboard/`·키체인과 섞이지 않고, 브라우저·프로필·주소(출처)마다 따로다. 다른 브라우저로 옮기려면 ⚙ 설정의 **설정 내보내기(JSON)** → **설정 가져오기**를 쓴다. 폴더·파일 선택과 비밀값은 옮겨지지 않아 가져온 뒤 다시 고른다.
+- 폴더 권한은 브라우저가 방문 때마다 다시 물을 수 있다. 그러면 위에 뜨는 **폴더 다시 연결**을 누른다.
+- 경로 칸에는 고른 폴더·파일 이름만 보인다(브라우저는 절대 경로를 모른다). 계획 이름 옆 **경로 복사**를 쓰려면 ⚙ 설정의 '실제 경로(경로 복사용, 선택)' 칸에 이 PC 에서의 폴더 경로를 적는다. PC·브라우저마다 다시 적는다.
+- ⬆ 업데이트·Finder 선택 창·키체인은 없다. 사이드바 아래 버전 줄은 서버 체크아웃의 커밋(`api/version`)이다. 서버 갱신은 운영자가 pull 뒤 재시작한다.
+
+실행:
+
+```
+python3 web_serve.py                       # http://127.0.0.1:8788/
+PORT=8790 python3 web_serve.py
+HOST=127.0.0.1 PORT=8788 ALLOWED_ORIGINS=https://dash.example.com python3 web_serve.py
+```
+
+| 환경변수 | 기본값 | 뜻 |
+|---|---|---|
+| `HOST` | `127.0.0.1` | 바인딩 주소. 리버스 프록시 뒤에서는 그대로 둔다. |
+| `PORT` | `8788` | 포트. |
+| `ALLOWED_ORIGINS` | `http://127.0.0.1:<PORT>,http://localhost:<PORT>` | 쉼표 구분 origin. 요청 `Host` 는 이 중 하나의 host[:port] 여야 하고(아니면 421), `/api/*` 의 `Origin` 은 이 중 하나와 같아야 한다(아니면 403). |
+
+사내 서버에서는 HTTPS 리버스 프록시(nginx 등) 뒤에 둔다. 프록시는 원래 `Host` 를 넘기고(nginx `proxy_set_header Host $host;`), `ALLOWED_ORIGINS` 에 사용자가 여는 주소(예: `https://dash.example.com`)를 적는다. 하위 경로(`/dashboard/`)에 올려도 화면은 상대 경로만 쓰므로 그대로 동작한다. 이때 프록시가 접두어를 떼고 넘긴다.
+
+서버가 하는 검사: `web/` 밖 경로·숨김 파일 거절(웹이 함께 쓰는 로컬판 파일은 `web_serve.py` 의 `SHARED_FILES` 목록만), 모든 응답에 `Content-Security-Policy`(스크립트는 같은 출처만)·`X-Content-Type-Options: nosniff`·`Referrer-Policy: no-referrer`, `/api/*` 는 `X-Dobbys-Proxy: 1` 헤더 필수·본문 64 KiB 까지. 로그에는 메서드·경로·상태만 남고 쿼리·헤더는 남지 않는다.
+
+웹 쪽 코드: `web_serve.py`, `api/`(프록시, `api/<이름>.py` 의 `handle(Request) -> Response`), `web/`(셸 `web/shell/`, 브라우저 모듈 `web/lib/`, 탭 목록 `web/tabs/manifest.js`, 탭 화면 `web/tabs/<id>/`). 테스트는 `tests/test_web_serve.py`, `tests/js/web/`.
+
 ## 보안
 
 - `127.0.0.1`(과 `::1`)에만 바인딩한다.

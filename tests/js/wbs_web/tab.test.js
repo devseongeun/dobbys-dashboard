@@ -15,7 +15,7 @@ test("필드·문구는 로컬판 tabs/wbs TAB.describe() 와 같다", () => {
   const { validate: _, ...web } = WBS_TAB;
   const strip = (f) => { const { accept, ...rest } = f; return rest; };
   expect({ ...web, fields: web.fields.map(strip) }).toEqual({ ...local, src: "tabs/wbs/" });
-  expect(WBS_TAB.fields.find((f) => f.key === "workbook").accept).toBeTruthy();
+  expect(WBS_TAB.fields.find((f) => f.key === "workbook").accept).toEqual([".xlsx"]);
 });
 
 const handleOf = (path) => ({ getFile: async () => new Blob([readFileSync(path)]) });

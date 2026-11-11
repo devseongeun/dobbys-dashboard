@@ -45,7 +45,7 @@ export const WBS_TAB = {
     }),
     field("workbook", "WBS 엑셀 파일", "file", {
       required: true, help: "팀 WBS .xlsx 파일.", when: ["mode", WBS],
-      accept: { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"] },
+      accept: [".xlsx"],
     }),
     field("owner", "담당자 이름", "text", {
       required: true, help: "엑셀 '담당자' 열의 내 이름. '이름 외 N명' 행도 포함합니다.", when: ["mode", WBS],

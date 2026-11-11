@@ -222,9 +222,41 @@ describe("JiraSession (session.py)", () => {
     expect(await new JiraSession(secrets, "team.atlassian.net", clientFor).client()).toBeNull();
   });
 
-  test("깨진 저장 값은 throw(보드가 로그인 화면)", async () => {
-    const secrets = memorySecrets({ jira: "{broken" });
-    await expect(new JiraSession(secrets, "team.atlassian.net", clientFor).client()).rejects.toThrow("읽지 못했다");
+  test("객체가 아닌 저장 값은 throw(보드가 로그인 화면), JSON 이 깨졌으면 secrets 가 null 이라 로그인 전", async () => {
+    const odd = memorySecrets({ jira: JSON.stringify(42) });
+    await expect(new JiraSession(odd, "team.atlassian.net", clientFor).client()).rejects.toThrow("읽지 못했다");
+    const broken = memorySecrets({ jira: "{broken" });
+    expect(await new JiraSession(broken, "team.atlassian.net", clientFor).client()).toBeNull();
+  });
+
+  test("web/lib/secrets.js 그대로: 기본 sessionStorage, 기억하면 localStorage, 로그아웃은 둘 다 지운다", async () => {
+    const storage = () => {
+      const map = new Map();
+      return { map, getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    };
+    const saved = { sessionStorage: globalThis.sessionStorage, localStorage: globalThis.localStorage };
+    const session = storage();
+    const local = storage();
+    Object.defineProperty(globalThis, "sessionStorage", { value: session, configurable: true, writable: true });
+    Object.defineProperty(globalThis, "localStorage", { value: local, configurable: true, writable: true });
+    try {
+      const secrets = await import("../../../web/lib/secrets.js");
+      const key = secrets.PREFIX + "jira";
+      const jira = new JiraSession(secrets, "team.atlassian.net", clientFor);
+      await jira.login("a@b.c", "good");
+      expect(JSON.parse(session.map.get(key))).toEqual({ domain: "team.atlassian.net", email: "a@b.c", token: "good" });
+      expect((await jira.client()).token).toBe("good");
+      await jira.login("a@b.c", "good", { remember: true });
+      expect([session.map.has(key), local.map.has(key)]).toEqual([false, true]);
+      expect((await jira.client()).email).toBe("a@b.c");
+      await jira.logout();
+      expect([session.map.size, local.map.size]).toEqual([0, 0]);
+      expect(await jira.client()).toBeNull();
+    } finally {
+      for (const [name, value] of Object.entries(saved)) {
+        Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
+      }
+    }
   });
 
   test("로그아웃은 저장 값을 지운다", async () => {

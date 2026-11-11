@@ -262,6 +262,59 @@ class RedirectTest(unittest.TestCase):
         self.assertEqual((response.status, json.loads(response.body)), (502, {"jiraStatus": 302}))
 
 
+class ThroughWebServeTest(unittest.TestCase):
+    """web_serve.py 공통 계층(Host·Origin·X-Dobbys-Proxy)을 거친 /api/jira. Jira 로 나가는 곳(_OPENER)만 대역이다."""
+    ORIGIN = "http://127.0.0.1:8788"
+    MYSELF = "/api/jira?domain=team.atlassian.net&path=%2Frest%2Fapi%2F3%2Fmyself"
+
+    def setUp(self):
+        import web_serve
+        self.opener = Opener()
+        self.enterContext(mock.patch.object(proxy, "_OPENER", self.opener))
+        self.log = io.StringIO()
+        handler = web_serve.make_handler(web_serve.WEB_ROOT, [self.ORIGIN], log=self.log)  # routes = API_ROUTES 그대로
+        self.server = web_serve.V4Server(("127.0.0.1", 0), handler)
+        threading.Thread(target=self.server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+
+    def get(self, path, headers, method="GET"):
+        import http.client
+        conn = http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=5)
+        self.addCleanup(conn.close)
+        conn.request(method, path, headers={"Host": "127.0.0.1:8788", **headers})
+        res = conn.getresponse()
+        return res.status, json.loads(res.read() or b"null")
+
+    def test_jira_is_registered(self):
+        import web_serve
+        self.assertIs(web_serve.API_ROUTES["jira"], proxy)
+
+    def test_allowed_request_reaches_jira_with_the_same_authorization(self):
+        status, body = self.get(self.MYSELF, {"Origin": self.ORIGIN, **OK_HEADERS})
+        self.assertEqual((status, body), (200, {"ok": True}))
+        [(url, headers, timeout)] = self.opener.calls
+        self.assertEqual((url, headers["Authorization"], timeout),
+                         ("https://team.atlassian.net/rest/api/3/myself", TOKEN, proxy.TIMEOUT_SECONDS))
+        self.assertEqual(self.log.getvalue(), "GET /api/jira 200\n")  # 쿼리·헤더·token 은 로그에 없다
+
+    def test_other_origin_or_missing_header_never_reaches_jira(self):
+        for headers in ({"Origin": "https://evil.example.com", **OK_HEADERS},
+                        {"Origin": self.ORIGIN, "Authorization": TOKEN},
+                        {"Origin": self.ORIGIN, "X-Dobbys-Proxy": "yes", "Authorization": TOKEN}):
+            status, body = self.get(self.MYSELF, headers)
+            self.assertEqual(status, 403, headers)
+            self.assertNotIn(SECRET, json.dumps(body))
+        self.assertEqual(self.opener.calls, [])
+        self.assertNotIn(SECRET, self.log.getvalue())
+        self.assertNotIn("YUBiLmM6", self.log.getvalue())
+
+    def test_non_get_is_refused_by_the_proxy(self):
+        status, body = self.get(self.MYSELF, {"Origin": self.ORIGIN, **OK_HEADERS}, method="POST")
+        self.assertEqual((status, body), (405, {"error": "GET 만 받는다"}))
+        self.assertEqual(self.opener.calls, [])
+
+
 class PurityTest(unittest.TestCase):
     def test_proxy_and_client_do_not_pull_tabs_or_dashboard(self):
         code = ("import sys, api.jira, jira_client; "

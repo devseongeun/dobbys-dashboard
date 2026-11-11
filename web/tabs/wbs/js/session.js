@@ -29,7 +29,7 @@ export class JiraSession {
   // /myself 로 신원을 확인한 뒤에만 저장한다. 실패하면 JiraError 를 그대로 던지고 아무것도 저장하지 않는다.
   async login(email, token, { remember = false } = {}) {
     const me = await this.clientFor(email, token).myself();
-    await this.secrets.setSecret(KEY, JSON.stringify({ domain: this.domain, email, token }), { remember });
+    await this.secrets.setSecret(KEY, { domain: this.domain, email, token }, { remember });
     return me;
   }
 

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>계획 보기</title>
+<!-- 구현 진행 현황 md 뷰어(웹 버전). 로컬판 tabs/plans/plans_view.html 과 같은 화면. 원문은 서버 대신 설정의 폴더 핸들에서 읽는다(view.js). 렌더러 marked 는 저장소의 tabs/_common/vendor/marked.umd.js 를 web_serve.py 가 준다. 읽기 전용이다. -->
+<style>
+:root{
+  --bg:#12141a;--card:#191c24;--card2:#1c2029;--line:#2a2f3a;--line2:#222733;
+  --ink:#e7e9ee;--muted:#8b93a7;--dim:#646c80;--acc:#5eead4;--open:#fbbf24;--done:#4ade80;--warn:#fb923c;
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:64px}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.7 -apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo",sans-serif}
+[hidden]{display:none!important}
+.bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:12px;padding:10px 20px;background:rgba(18,20,26,.94);border-bottom:1px solid var(--line);backdrop-filter:blur(6px)}
+.bar h1{margin:0;font-size:15px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.back{background:#232833;border:1px solid var(--line);color:var(--muted);border-radius:99px;padding:4px 12px;font:12px inherit;cursor:pointer;text-decoration:none;white-space:nowrap}
+.back:hover{color:var(--ink)}
+.meta{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:#232833;border:1px solid var(--line);color:var(--muted);border-radius:99px;padding:1px 10px;font-size:11.5px;white-space:nowrap}
+.chip.doing{color:var(--acc);border-color:rgba(94,234,212,.35)}.chip.todo{color:#fcd34d;border-color:rgba(251,191,36,.35)}.chip.done{color:var(--done);border-color:rgba(74,222,128,.35)}
+.chip.warn{color:var(--warn);border-color:rgba(251,146,60,.4)}
+.layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:28px;max-width:1280px;margin:0 auto;padding:20px 20px 80px}
+.toc{position:sticky;top:64px;align-self:start;max-height:calc(100vh - 84px);overflow:auto;font-size:12.5px;border-right:1px solid var(--line2);padding-right:12px}
+.toc b{display:block;color:var(--dim);font-size:11px;font-weight:500;margin-bottom:6px}
+.toc a{display:block;color:var(--muted);text-decoration:none;padding:2px 0;line-height:1.45}
+.toc a:hover{color:var(--acc)}
+.toc a.h3{padding-left:12px;font-size:12px}
+.msg{color:var(--muted);padding:24px 0}
+.msg.err{color:#ffc9d4}
+.md{min-width:0}
+.md h1,.md h2,.md h3,.md h4{line-height:1.35;margin:1.6em 0 .6em}
+.md h1{font-size:22px;margin-top:.2em}.md h2{font-size:18px;padding-bottom:6px;border-bottom:1px solid var(--line)}.md h3{font-size:15.5px}.md h4{font-size:14px;color:var(--muted)}
+.md a{color:var(--acc)}
+.md p,.md ul,.md ol,.md blockquote,.md pre,.md .tbl{margin:0 0 .9em}
+.md ul,.md ol{padding-left:1.5em}
+.md li+li{margin-top:2px}
+.md li.task{list-style:none;margin-left:-1.3em}
+.md input[type=checkbox]{accent-color:var(--done);margin:0 6px 0 0;vertical-align:-2px}
+.md li.task.checked{color:var(--muted)}
+.md code{font:12.5px ui-monospace,SFMono-Regular,Menlo,"D2Coding",monospace;background:#1f232c;border:1px solid var(--line2);border-radius:4px;padding:0 4px}
+.md pre{background:#161920;border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow:auto}
+.md pre code{background:none;border:0;padding:0;font-size:12px;line-height:1.55}
+.md blockquote{border-left:3px solid var(--line);margin-left:0;padding:2px 0 2px 14px;color:var(--muted)}
+.md hr{border:0;border-top:1px solid var(--line);margin:1.6em 0}
+.md .tbl{overflow:auto}
+.md table{border-collapse:collapse;font-size:12.5px}
+.md th,.md td{border:1px solid var(--line);padding:5px 9px;text-align:left;vertical-align:top}
+.md th{background:var(--card2);color:var(--muted);font-weight:600}
+.md .embed{color:var(--dim);font-style:italic}
+.msg button{margin-left:8px;background:#232833;border:1px solid var(--line);color:var(--ink);border-radius:99px;padding:3px 12px;font:12px inherit;cursor:pointer}
+@media (max-width:900px){.layout{grid-template-columns:1fr}.toc{display:none}}
+</style>
+</head>
+<body>
+<header class="bar">
+  <a class="back" id="back" href="./">← 목록</a>
+  <h1 id="title">계획 보기</h1>
+  <div class="meta" id="meta"></div>
+</header>
+<div class="layout">
+  <nav class="toc" id="toc" aria-label="목차"><b>목차</b></nav>
+  <main class="md" id="doc"><p class="msg">불러오는 중…</p></main>
+</div>
+<script src="marked.umd.js"></script>
+<script type="module" src="view.js"></script>
+</body>
+</html>

@@ -20,6 +20,9 @@ export function splitFrontmatter(src) {
   return { meta, body: lines.slice(end + 1).join("\n") };
 }
 
+// 임베드 이름을 HTML 로 넣기 전에 escape 한다(이름 안의 <·&·따옴표가 태그로 읽히지 않게).
+const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
+
 // Obsidian 문법을 일반 md 로 바꾼다. 펜스 코드 블록 안은 그대로 둔다.
 export function obsidian(body) {
   let fenced = false;
@@ -27,7 +30,7 @@ export function obsidian(body) {
     if (FENCE.test(line)) { fenced = !fenced; return line; }
     if (fenced) return line;
     return line
-      .replace(/!\[\[([^\]|]+)(?:\\?\|[^\]]*)?\]\]/g, (_, f) => `<span class="embed">[이미지: ${f}]</span>`)
+      .replace(/!\[\[([^\]|]+)(?:\\?\|[^\]]*)?\]\]/g, (_, f) => `<span class="embed">[이미지: ${escapeHtml(f)}]</span>`)
       .replace(/\[\[([^\]|]+?)\\?\|([^\]]+)\]\]/g, "$2")
       .replace(/\[\[([^\]]+)\]\]/g, "$1");
   }).join("\n");

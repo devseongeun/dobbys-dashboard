@@ -2,10 +2,13 @@
 import http.client
 import io
 import json
+import os
+import socket
 import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import api.version
 import web_serve
@@ -48,11 +51,17 @@ class WebServeTest(unittest.TestCase):
         shared_src.parent.mkdir()
         shared_src.write_text("export const route = 1;", encoding="utf-8")
         (self.tmp / "local" / "other.js").write_text("nope", encoding="utf-8")
+        # 저장소(shared_root) 밖 파일을 가리키는 공유 항목 링크.
+        self.outside = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve() / "outside.txt"
+        self.outside.write_text("SECRET outside", encoding="utf-8")
+        (self.tmp / "local" / "linked.js").symlink_to(self.outside)
         self.log = io.StringIO()
         handler = web_serve.make_handler(
             self.web, [ORIGIN, "http://localhost:8788", "https://dash.example.com"],
             routes={"version": api.version, "boom": Boom, "echo": Echo, "headed": Headed},
-            shared={"shared/route.js": shared_src, "tabs/plans/한글 템플릿.md": shared_src}, log=self.log)
+            shared={"shared/route.js": shared_src, "tabs/plans/한글 템플릿.md": shared_src,
+                    "shared/linked.js": self.tmp / "local" / "linked.js"},
+            log=self.log, shared_root=self.tmp)
         self.server = web_serve.V4Server(("127.0.0.1", 0), handler)
         threading.Thread(target=self.server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()
         self.addCleanup(self.server.server_close)
@@ -119,6 +128,53 @@ class WebServeTest(unittest.TestCase):
         res, _ = self.request("GET", "/tabs/plans/%ED%95%9C%EA%B8%80%20%ED%85%9C%ED%94%8C%EB%A6%BF.md")
         self.assertEqual((res.status, res.getheader("Content-Type")), (200, "text/markdown; charset=utf-8"))
 
+    def test_symlinks_that_resolve_outside_the_roots_are_404(self):
+        # 폴더 index.html(루트·하위 폴더)·일반 파일·공유 항목이 루트 밖을 가리키면 열지 않는다.
+        (self.web / "index.html").unlink()
+        (self.web / "index.html").symlink_to(self.tmp / "secret.py")
+        (self.web / "tabs" / "plans" / "index.html").unlink()
+        (self.web / "tabs" / "plans" / "index.html").symlink_to(self.outside)
+        (self.web / "leak.js").symlink_to(self.tmp / "secret.py")
+        (self.web / "tabs" / "dot").mkdir()
+        (self.web / "tabs" / "dot" / "index.html").symlink_to(self.web / ".hidden.js")  # 안이지만 숨김 파일
+        for path in ("/", "/tabs/plans/", "/leak.js", "/shared/linked.js", "/tabs/dot/"):
+            res, body = self.request("GET", path)
+            self.assertEqual(res.status, 404, path)
+            self.assertNotIn(b"SECRET", body)
+            self.assert_security_headers(res)
+
+    def test_symlinks_inside_the_web_root_still_work(self):
+        (self.web / "tabs" / "alias").mkdir()
+        (self.web / "tabs" / "alias" / "index.html").symlink_to(self.web / "tabs" / "plans" / "index.html")
+        (self.web / "alias.js").symlink_to(self.web / "app.js")
+        res, body = self.request("GET", "/tabs/alias/")
+        self.assertEqual((res.status, body), (200, b"plans"))
+        res, body = self.request("GET", "/alias.js")
+        self.assertEqual((res.status, body), (200, b"export {};"))
+
+    def raw(self, data: bytes) -> bytes:
+        with socket.create_connection(("127.0.0.1", self.server.server_port), timeout=5) as sock:
+            sock.sendall(data)
+            chunks = []
+            while chunk := sock.recv(65536):
+                chunks.append(chunk)
+        return b"".join(chunks)
+
+    def test_standard_library_errors_also_carry_security_headers(self):
+        res, _ = self.request("TRACE", "/")  # do_TRACE 가 없어 send_error(501)
+        self.assertEqual(res.status, 501)
+        self.assert_security_headers(res)
+        # 헤더 줄이 너무 길거나 너무 많으면 431(헤더를 싣는 표준 오류). 요청 줄 자체가 틀린 400·505 는
+        # 표준 라이브러리가 HTTP/0.9 응답(헤더 없이 본문만)으로 보내므로 실을 헤더가 없다.
+        many = b"".join(b"X-%d: 1\r\n" % i for i in range(120))
+        for data, status in ((b"GET / HTTP/1.1\r\nX-Long: " + b"a" * 70000 + b"\r\n\r\n", "431"),
+                             (b"GET / HTTP/1.1\r\n" + many + b"\r\n", "431")):
+            head = self.raw(data).split(b"\r\n\r\n", 1)[0].decode("latin-1")
+            self.assertRegex(head.split("\r\n", 1)[0], rf"^HTTP/1\.[01] {status} ")
+            self.assertIn(f"Content-Security-Policy: {web_serve.CSP}", head)
+            self.assertIn("X-Content-Type-Options: nosniff", head)
+            self.assertIn("Referrer-Policy: no-referrer", head)
+
     def test_real_shared_files_exist(self):
         for rel, path in web_serve.SHARED_FILES.items():
             self.assertTrue(path.is_file(), rel)
@@ -182,6 +238,16 @@ class WebServeTest(unittest.TestCase):
         self.assertEqual(res.status, 500)
         self.assertNotIn(b"secret", body)
         self.assertNotIn("secret", self.log.getvalue())
+
+    def test_debug_log_keeps_only_exception_type_and_location(self):
+        with mock.patch.dict(os.environ, {"DOBBYS_DEBUG": "1"}):
+            res, _ = self.api("/api/boom?token=secret-q", headers={"Authorization": "Bearer secret-h"})
+        self.assertEqual(res.status, 500)
+        log = self.log.getvalue()
+        self.assertIn("api boom 오류: RuntimeError", log)
+        self.assertRegex(log, r"test_web_serve\.py:\d+ handle")
+        self.assertNotIn("secret", log)
+        self.assertNotIn("raise", log)  # 소스 줄도 싣지 않는다
 
     def test_log_keeps_only_method_path_and_status(self):
         self.api("/api/version?token=secret-q", headers={"Authorization": "Bearer secret-h"})

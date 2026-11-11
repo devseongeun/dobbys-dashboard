@@ -3,6 +3,7 @@ import { tabContext } from "../../lib/tab.js";
 import * as fsa from "../../lib/fsa.js";
 import { LABELS, STATES, obsidian, planName, splitFrontmatter, toSlug } from "./viewer.js";
 import { FROM_LIST, decode } from "./plans_index.js";
+import { sanitize } from "./sanitize.js";
 
 const $ = (id) => document.getElementById(id);
 const marked = globalThis.marked;
@@ -132,7 +133,10 @@ async function load() {
       return;
     }
     const { meta, body } = splitFrontmatter(text);
-    doc.innerHTML = marked.parse(obsidian(body), { gfm: true });
+    // md 의 원시 HTML 은 <template>(실행·로드 없음)에서 허용 목록으로 거른 뒤에 붙인다(sanitize.js).
+    const rendered = document.createElement("template");
+    rendered.innerHTML = marked.parse(obsidian(body), { gfm: true });
+    doc.replaceChildren(sanitize(rendered.content));
     decorate(doc);
     showMeta(meta, doc);
     window.scrollTo(0, 0);

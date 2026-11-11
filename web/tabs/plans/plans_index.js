@@ -48,9 +48,22 @@ export function roundHalfEven(x) {
   return floor % 2 === 0 ? floor : floor + 1;
 }
 
+// 유니코드 십진 숫자(\p{Nd}, 예: ５·٥)를 ASCII 0–9 로. Python float() 이 읽기 전에 하는 변환과 같다.
+// Nd 글자는 0–9 가 연속 10자 묶음으로 놓이므로(유니코드 안정성 규칙) 연속 구간의 시작에서 센 거리 % 10 이 값이다.
+const ND = /^\p{Nd}$/u;
+export function asciiDigits(value) {
+  return Array.from(String(value), (ch) => {
+    if (!ND.test(ch) || (ch >= "0" && ch <= "9")) return ch;
+    const cp = ch.codePointAt(0);
+    let start = cp;
+    while (ND.test(String.fromCodePoint(start - 1))) start--;
+    return String((cp - start) % 10);
+  }).join("");
+}
+
 // Python float(). 못 읽거나 round() 가 실패할 값(nan·inf)은 NaN.
 export function pyFloat(raw) {
-  const s = pyStrip(raw);
+  const s = asciiDigits(pyStrip(raw));
   const number = /^[+-]?(\d(_?\d)*(\.(\d(_?\d)*)?)?|\.\d(_?\d)*)([eE][+-]?\d(_?\d)*)?$/;
   if (!number.test(s)) return NaN;
   const value = Number(s.replaceAll("_", ""));

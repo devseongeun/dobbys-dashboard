@@ -1,0 +1,18 @@
+/* 웹 버전에서 더한 것만. 기본 스타일은 로컬판 shell/shell.css 를 그대로 쓴다(web_serve.py SHARED_FILES). */
+.settings { margin-top: auto; }
+main { display: flex; flex-direction: column; }
+.frames { position: relative; flex: 1; min-height: 0; }
+.frames iframe { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; }
+.frames iframe[hidden] { display: block; visibility: hidden; pointer-events: none; }
+.notice { display: grid; gap: 6px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--hover); font-size: 13px; }
+.notice[hidden] { display: none; }
+.notice p { margin: 0; }
+.notice .warn { color: var(--warn); }
+.notice button, .onboarding .notice button { justify-self: start; padding: 5px 12px; border: 1px solid var(--acc); border-radius: 7px; background: var(--acc); color: #fff; cursor: pointer; font: inherit; }
+.onboarding .notice { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 16px; }
+.onboarding .warning { color: #c27c0e; font-size: 12px; margin: 0; }
+.onboarding .path-name { cursor: default; }
+.onboarding .moves { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.onboarding .linkish { padding: 0; border: 0; background: none; color: var(--acc); cursor: pointer; font: inherit; text-decoration: underline; }
+.onboarding .ok { color: var(--acc); font-size: 12px; margin: 0; }
+.onboarding > fieldset { margin-left: auto; margin-right: auto; }

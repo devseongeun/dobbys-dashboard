@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>웹 기획서 코멘트 현황</title>
+<script src="theme.js"></script>
+<link rel="stylesheet" href="comments.css"/>
+</head><body>
+<header>
+  <button class="act" id="theme" type="button"></button>
+  <h1 id="title">웹 기획서 코멘트 현황</h1>
+  <div class="sub" id="sub">불러오는 중…</div>
+  <div class="banner" id="banner" hidden></div>
+  <div class="bar" id="filters"></div>
+  <div class="bar" id="stats"></div>
+  <div class="bar">
+    <button class="act primary" id="refresh" title="기획서 API 를 다시 읽어 화면을 갱신합니다.">🔄 최신화</button>
+    <button class="act primary" id="apply" disabled title="체크한 코멘트에 기획서 👀 반응을 붙입니다. 기획 답글이 있으면 마지막 답글에, 없으면 내 코멘트 본문에 붙입니다.">👀 확인 완료</button>
+    <button class="act" id="logout" hidden title="이 브라우저에 보관한 기획서 로그인 토큰을 지웁니다."></button>
+    <button class="act" id="expand">전체 펼치기</button>
+    <button class="act" id="collapse">전체 접기</button>
+    <button class="act" id="hidedone">결정 완료 숨기기</button>
+    <button class="act" id="export">📝 MD 내보내기</button>
+    <span class="rstat" id="rstat"></span>
+    <span class="prog" id="prog"></span>
+  </div>
+  <div class="bar login" id="loginbar" hidden>
+    <span class="meta">기획서 계정으로 로그인하면 내 코멘트를 불러오고 👀 를 남길 수 있습니다. 토큰은 이 브라우저에만 보관하고, 비밀번호는 서버를 지나기만 합니다.</span>
+    <input id="lid" type="email" placeholder="이메일" autocomplete="username"/>
+    <input id="lpw" type="password" placeholder="비밀번호" autocomplete="current-password"/>
+    <label class="remember" title="끄면 이 탭을 닫을 때 지워진다(sessionStorage). 켜면 이 브라우저에 남는다(localStorage)."><input id="lremember" type="checkbox"/> 이 브라우저에 기억</label>
+    <button class="act primary" id="lgo">로그인</button>
+  </div>
+  <div class="legend">
+    <i><span class="bx ok">✓</span> 결정 완료 — 내가 <span class="decbadge">👀</span> 를 붙인 코멘트·답글</i>
+    <i><span class="bx"></span> 미결 (다음 회의 안건) — 체크하고 [👀 확인 완료]를 누르면 기획서에 👀 를 붙인다</i>
+    <i><span class="pribadge">우선순위 상</span><span class="pribadge mid">우선순위 중</span> 리뷰에서 다룰 순서 — 각 코멘트의 [우선순위] 버튼으로 지정</i>
+    <i><span class="bx no">−</span> 보류 — 답변 불필요, 체크할 수 없음. [보류] 버튼으로 지정·해제</i>
+    <i><span class="ansbadge">답변 완료</span> 기획 답글 수신 — 체크박스와 별개 축이다</i>
+  </div>
+</header>
+<main id="root"></main>
+<footer>결정 상태는 기획서의 👀 반응으로 판정합니다. 내가 👀 를 붙인 코멘트(본문 또는 기획 답글)가 결정 완료입니다. 미결 코멘트를 체크하고 [👀 확인 완료]를 누르면 대시보드 서버가 기획서에 👀 를 붙입니다 — 기획 답글이 있으면 마지막 답글에, 없으면 내 코멘트 본문에 붙이고, 반응 API 가 토글이라 직전에 다시 읽어 이미 붙은 건은 건너뜁니다. 우선순위·보류는 기획서에 없는 표시라 이 브라우저(IndexedDB)에만 저장됩니다. [📝 MD 내보내기]는 현재 상태를 체크리스트 md 로 ⚙ 설정에서 고른 폴더에 브라우저가 직접 저장합니다(서버로 보내지 않습니다).</footer>
+<script type="module" src="app.js"></script>
+</body></html>

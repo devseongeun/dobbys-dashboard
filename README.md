@@ -173,7 +173,7 @@ cd ~/workspace/dobbys-dashboard && python3 serve.py
 
 ## 웹 버전(사내 서버용)
 
-로컬판(`serve.py`, launchd)과 따로 도는 브라우저용 판이다. 사내 공용 서버에 올려 팀원이 설치 없이 쓴다. 로그인은 없다. 1단계 탭은 WBS·Jira(wbs)와 구현 진행 현황(plans)이다.
+로컬판(`serve.py`, launchd)과 따로 도는 브라우저용 판이다. 사내 공용 서버에 올려 팀원이 설치 없이 쓴다. 로그인은 없다. 탭은 WBS·Jira(wbs), 구현 진행 현황(plans), 기획서 코멘트 현황(comments)이다.
 
 - **파일은 서버로 가지 않는다.** 브라우저가 File System Access API 로 고른 폴더·파일을 직접 읽는다. 서버(`web_serve.py`)는 정적 화면(`web/`)과 `/api/<이름>` 프록시만 준다.
 - **Chrome·Edge 전용.** Firefox·Safari 는 폴더 선택을 지원하지 않아 첫 화면에 안내만 뜬다.
@@ -182,6 +182,8 @@ cd ~/workspace/dobbys-dashboard && python3 serve.py
 - 폴더 권한은 브라우저가 방문 때마다 다시 물을 수 있다. 그러면 위에 뜨는 **폴더 다시 연결**을 누른다.
 - **WBS·Jira 탭**: WBS 엑셀(.xlsx)은 브라우저가 직접 읽고 서버로 보내지 않는다. 권한이 풀리면 탭 위 **WBS 엑셀 다시 연결**을 누른다. 수동 연결·보드 칸 지정·일정 초안은 IndexedDB 에 남는다. Jira 로그인(이메일·API token)은 탭 안에서 하고 브라우저에만 둔다(기본은 창을 닫으면 사라지고, **이 브라우저에 기억**을 켜면 localStorage).
 - **Jira 프록시(`/api/jira`)**: Atlassian 이 API token 방식의 브라우저 직접 호출(CORS)을 받지 않아 서버가 전달만 한다. `https://<사이트><JIRA_HOST_SUFFIX>` 의 `GET /rest/api/3/myself`·`/rest/api/3/search/jql`·`/rest/api/3/issue/<KEY>/worklog` 만, 경로마다 정해진 쿼리와 로컬판이 만드는 JQL 모양만 통과한다. `Authorization` 은 받은 그대로 한 번 넘기고 저장·로그하지 않으며 오류 응답에도 싣지 않는다. 리다이렉트를 따라가지 않고 30초 안에 답이 없으면 504 다.
+- **기획서 코멘트 현황 탭**: 기획서(TROMBONE) 주소는 ⚙ 설정에 없고 서버 환경변수 `TROMBONE_BASE` 로만 정한다(브라우저가 주소를 정하면 사내망 열린 프록시가 된다). 없으면 탭이 '서버에 기획서 주소가 설정되지 않았다' 를 보인다. 로그인(이메일·비밀번호)은 탭 안에서 하고, 받은 token·이름만 브라우저에 둔다(기본은 창을 닫으면 사라지고 **이 브라우저에 기억**을 켜면 localStorage). 우선순위·보류는 IndexedDB 에 남는다. **📝 MD 내보내기**는 ⚙ 설정에서 고른 체크리스트 저장 폴더(쓰기 권한)에 브라우저가 직접 쓴다. 👀 확인 완료는 로컬판처럼 직전에 다시 읽어 이미 붙은 반응은 건너뛴다(반응 API 가 토글이다).
+- **기획서 중계(`/api/trombone`)**: `TROMBONE_BASE` + `/trbw/api` 의 `GET /comments`·`GET /spec?path=`·`POST /auth/login`·`POST /spec/comments/<ID>/reactions` 넷만, 경로마다 정해진 쿼리·본문 모양만 통과한다(본문은 검사한 값으로 다시 만든다). `GET api/trombone/config` 는 기획서에 나가지 않고 주소만 알려 준다(화면 링크·md 머리말용). `Authorization`(Bearer)은 반응에서만, 비밀번호는 로그인에서만 넘기고 저장·로그하지 않으며 오류 응답에도 싣지 않는다. 리다이렉트를 따라가지 않고 20초 안에 답이 없으면 504, 응답은 16 MiB 까지다.
 - 경로 칸에는 고른 폴더·파일 이름만 보인다(브라우저는 절대 경로를 모른다). 계획 이름 옆 **경로 복사**를 쓰려면 ⚙ 설정의 '실제 경로(경로 복사용, 선택)' 칸에 이 PC 에서의 폴더 경로를 적는다. PC·브라우저마다 다시 적는다.
 - ⬆ 업데이트·Finder 선택 창·키체인은 없다. 사이드바 아래 버전 줄은 서버 체크아웃의 커밋(`api/version`, 환경변수 `DOBBYS_COMMIT`·`DOBBYS_COMMIT_DATE` 가 있으면 그 값)이다. 서버 갱신은 운영자가 pull 뒤 재시작한다.
 
@@ -198,6 +200,7 @@ HOST=127.0.0.1 PORT=8788 ALLOWED_ORIGINS=https://dash.example.com python3 web_se
 | `HOST` | `127.0.0.1` | 바인딩 주소. 리버스 프록시 뒤에서는 그대로 둔다. |
 | `PORT` | `8788` | 포트. |
 | `JIRA_HOST_SUFFIX` | `.atlassian.net` | `/api/jira` 가 받는 Jira 주소 끝. `<사이트>` 는 영문 소문자·숫자·`-` 한 단어다. |
+| `TROMBONE_BASE` | 없음 | `/api/trombone` 이 부르는 기획서(TROMBONE) 주소(`http(s)://호스트[:포트]`, 예: `http://기획서-서버:8088`). 비우면 코멘트 탭이 '서버에 기획서 주소가 설정되지 않았다' 를 보인다. |
 | `ALLOWED_ORIGINS` | `http://127.0.0.1:<PORT>,http://localhost:<PORT>` | 쉼표 구분 origin. 요청 `Host` 는 이 중 하나의 host[:port] 여야 하고(아니면 421), `/api/*` 의 `Origin` 은 이 중 하나와 같아야 한다(아니면 403). |
 
 사내 서버에서는 HTTPS 리버스 프록시(nginx 등) 뒤에 둔다. 프록시는 원래 `Host` 를 포트까지 넘기고(nginx `proxy_set_header Host $http_host;`. `$host` 는 포트를 떼어 443 이 아닌 포트에서 421 이 된다), `ALLOWED_ORIGINS` 에 사용자가 여는 주소(예: `https://dash.example.com`)를 적는다. 하위 경로(`/dashboard/`)에 올려도 화면은 상대 경로만 쓰므로 그대로 동작한다. 이때 프록시가 접두어를 떼고 넘긴다.
@@ -206,7 +209,7 @@ HOST=127.0.0.1 PORT=8788 ALLOWED_ORIGINS=https://dash.example.com python3 web_se
 
 서버가 하는 검사: `web/` 밖 경로·숨김 파일 거절(웹이 함께 쓰는 로컬판 파일은 `web_serve.py` 의 `SHARED_FILES` 목록만), 모든 응답에 `Content-Security-Policy`(스크립트는 같은 출처만)·`X-Content-Type-Options: nosniff`·`Referrer-Policy: no-referrer`, `/api/*` 는 `X-Dobbys-Proxy: 1` 헤더 필수·본문 64 KiB 까지. 로그에는 메서드·경로·상태만 남고 쿼리·헤더는 남지 않는다.
 
-웹 쪽 코드: `web_serve.py`, `api/`(프록시, `api/<이름>.py` 의 `handle(Request) -> Response`), `web/`(셸 `web/shell/`, 브라우저 모듈 `web/lib/`, 탭 목록 `web/tabs/manifest.js`, 탭 화면 `web/tabs/<id>/`). 테스트는 `tests/test_web_serve.py`, `tests/test_web_jira_proxy.py`, `tests/js/web/`, `tests/js/wbs_web/`(같은 예제 엑셀·Jira 응답으로 로컬판과 결과 비교).
+웹 쪽 코드: `web_serve.py`, `api/`(프록시, `api/<이름>.py` 의 `handle(Request) -> Response`), `web/`(셸 `web/shell/`, 브라우저 모듈 `web/lib/`, 탭 목록 `web/tabs/manifest.js`, 탭 화면 `web/tabs/<id>/`). 테스트는 `tests/test_web_serve.py`, `tests/test_web_jira_proxy.py`, `tests/test_web_trombone_proxy.py`, `tests/js/web/`(`comments_parity.test.js`·`comments_service.test.js` 는 같은 TROMBONE 응답 예제 `comments_fixture.py` 로 로컬판과 결과 비교), `tests/js/wbs_web/`(같은 예제 엑셀·Jira 응답으로 로컬판과 결과 비교). Chrome 확인용 목업 서버는 `tests/web_check/`(`wbs_mock_serve.py`, `trombone_mock_serve.py`).
 
 ## 보안
 

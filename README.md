@@ -173,7 +173,7 @@ cd ~/workspace/dobbys-dashboard && python3 serve.py
 
 ## 웹 버전(사내 서버용)
 
-로컬판(`serve.py`, launchd)과 따로 도는 브라우저용 판이다. 사내 공용 서버에 올려 팀원이 설치 없이 쓴다. 로그인은 없다. 1단계 탭은 WBS·Jira(wbs)와 구현 진행 현황(plans)이다.
+로컬판(`serve.py`, launchd)과 따로 도는 브라우저용 판이다. 사내 공용 서버에 올려 팀원이 설치 없이 쓴다. 로그인은 없다. 1단계 탭은 WBS·Jira(wbs), 구현 진행 현황(plans), 회의 자료(meetings)다.
 
 - **파일은 서버로 가지 않는다.** 브라우저가 File System Access API 로 고른 폴더·파일을 직접 읽는다. 서버(`web_serve.py`)는 정적 화면(`web/`)과 `/api/<이름>` 프록시만 준다.
 - **Chrome·Edge 전용.** Firefox·Safari 는 폴더 선택을 지원하지 않아 첫 화면에 안내만 뜬다.
@@ -182,6 +182,7 @@ cd ~/workspace/dobbys-dashboard && python3 serve.py
 - 폴더 권한은 브라우저가 방문 때마다 다시 물을 수 있다. 그러면 위에 뜨는 **폴더 다시 연결**을 누른다.
 - **WBS·Jira 탭**: WBS 엑셀(.xlsx)은 브라우저가 직접 읽고 서버로 보내지 않는다. 권한이 풀리면 탭 위 **WBS 엑셀 다시 연결**을 누른다. 수동 연결·보드 칸 지정·일정 초안은 IndexedDB 에 남는다. Jira 로그인(이메일·API token)은 탭 안에서 하고 브라우저에만 둔다(기본은 창을 닫으면 사라지고, **이 브라우저에 기억**을 켜면 localStorage).
 - **Jira 프록시(`/api/jira`)**: Atlassian 이 API token 방식의 브라우저 직접 호출(CORS)을 받지 않아 서버가 전달만 한다. `https://<사이트><JIRA_HOST_SUFFIX>` 의 `GET /rest/api/3/myself`·`/rest/api/3/search/jql`·`/rest/api/3/issue/<KEY>/worklog` 만, 경로마다 정해진 쿼리와 로컬판이 만드는 JQL 모양만 통과한다. `Authorization` 은 받은 그대로 한 번 넘기고 저장·로그하지 않으며 오류 응답에도 싣지 않는다. 리다이렉트를 따라가지 않고 30초 안에 답이 없으면 504 다.
+- **회의 자료 탭**: 브라우저는 고른 폴더 위로 올라갈 수 없어, 로컬판처럼 회의 폴더 위에서 `.obsidian` 을 찾지 않고 **Obsidian Vault 폴더**(`.obsidian` 이 있는 곳)와 그 안의 **회의 폴더**를 따로 고른다(둘 다 읽기·쓰기 권한). Canvas(`.canvas`)·순서 파일(`.order/`)·휴지통(`.trash/`)을 브라우저가 직접 고쳐 쓴다. 저장 직전 Canvas 를 다시 읽어 그사이 Obsidian 등에서 바뀌었으면 쓰지 않고 다시 불러오고, 파일은 브라우저가 임시 파일에 쓴 뒤 한 번에 바꾼다. 미리보기는 Vault 에서 직접 읽고, HTML·SVG·이미지는 스크립트 없이(sandbox) 보인다.
 - 경로 칸에는 고른 폴더·파일 이름만 보인다(브라우저는 절대 경로를 모른다). 계획 이름 옆 **경로 복사**를 쓰려면 ⚙ 설정의 '실제 경로(경로 복사용, 선택)' 칸에 이 PC 에서의 폴더 경로를 적는다. PC·브라우저마다 다시 적는다.
 - ⬆ 업데이트·Finder 선택 창·키체인은 없다. 사이드바 아래 버전 줄은 서버 체크아웃의 커밋(`api/version`, 환경변수 `DOBBYS_COMMIT`·`DOBBYS_COMMIT_DATE` 가 있으면 그 값)이다. 서버 갱신은 운영자가 pull 뒤 재시작한다.
 
@@ -206,7 +207,7 @@ HOST=127.0.0.1 PORT=8788 ALLOWED_ORIGINS=https://dash.example.com python3 web_se
 
 서버가 하는 검사: `web/` 밖 경로·숨김 파일 거절(웹이 함께 쓰는 로컬판 파일은 `web_serve.py` 의 `SHARED_FILES` 목록만), 모든 응답에 `Content-Security-Policy`(스크립트는 같은 출처만)·`X-Content-Type-Options: nosniff`·`Referrer-Policy: no-referrer`, `/api/*` 는 `X-Dobbys-Proxy: 1` 헤더 필수·본문 64 KiB 까지. 로그에는 메서드·경로·상태만 남고 쿼리·헤더는 남지 않는다.
 
-웹 쪽 코드: `web_serve.py`, `api/`(프록시, `api/<이름>.py` 의 `handle(Request) -> Response`), `web/`(셸 `web/shell/`, 브라우저 모듈 `web/lib/`, 탭 목록 `web/tabs/manifest.js`, 탭 화면 `web/tabs/<id>/`). 테스트는 `tests/test_web_serve.py`, `tests/test_web_jira_proxy.py`, `tests/js/web/`, `tests/js/wbs_web/`(같은 예제 엑셀·Jira 응답으로 로컬판과 결과 비교).
+웹 쪽 코드: `web_serve.py`, `api/`(프록시, `api/<이름>.py` 의 `handle(Request) -> Response`), `web/`(셸 `web/shell/`, 브라우저 모듈 `web/lib/`, 탭 목록 `web/tabs/manifest.js`, 탭 화면 `web/tabs/<id>/`). 테스트는 `tests/test_web_serve.py`, `tests/test_web_jira_proxy.py`, `tests/js/web/`, `tests/js/wbs_web/`(같은 예제 엑셀·Jira 응답으로 로컬판과 결과 비교), `tests/js/meetings_web/`(같은 예제 Vault 로 로컬판과 Canvas 읽기·쓰기 결과 비교, 저장 충돌·원자적 교체).
 
 ## 보안
 

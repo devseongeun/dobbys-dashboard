@@ -206,11 +206,11 @@ def main() -> None:
     if command == "build":
         payload = build(Path(sys.argv[2]))
     elif command == "read":
-        payload = read(Path(sys.argv[2]), Path(sys.argv[3]))
+        payload = read(Path(sys.argv[2]).resolve(), Path(sys.argv[3]).resolve())
     elif command == "snapshot":
         payload = snapshot(Path(sys.argv[2]))
     elif command == "run":
-        payload = run(Path(sys.argv[2]), Path(sys.argv[3]), json.loads(Path(sys.argv[4]).read_text(encoding="utf-8")))
+        payload = run(Path(sys.argv[2]).resolve(), Path(sys.argv[3]).resolve(), json.loads(Path(sys.argv[4]).read_text(encoding="utf-8")))
     else:
         raise SystemExit(__doc__)
     print(json.dumps(payload, ensure_ascii=False))

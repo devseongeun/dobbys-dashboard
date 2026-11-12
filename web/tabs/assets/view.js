@@ -1,14 +1,15 @@
 // 의사결정 문서 뷰어(웹). 설정의 폴더 핸들에서 문서를 읽어 화면 안 sandbox iframe 에 띄운다. 규칙은 doc_frame.js.
 // - 같은 폴더 그림(<img src="그림.svg">)은 data: 주소로 바꿔 넣는다(로컬판은 서버가 같은 폴더 파일을 줬다).
-// - 바깥 링크는 새 탭, 같은 폴더 문서 링크는 이 뷰어, 그 밖의 링크(하위 폴더·다른 형식)는 막고 위에 알린다.
-// - 문서 안 스크립트는 실행하지 않는다(CSP + sandbox). 스크립트가 있으면 위에 알리고 원본 내려받기를 보인다.
+// - 문서 안 링크는 모두 부모가 처리한다(doc_frame.js handleLink): #앵커는 스크롤, 바깥 링크는 새 탭(noopener),
+//   같은 폴더 문서는 이 뷰어, 같은 폴더 pdf·그림은 내려받기, 그 밖(하위 폴더·javascript: 등)은 막고 위에 알린다.
+// - 문서 안 스크립트·바깥 그림·글꼴은 불러오지 않는다(CSP + sandbox). 있으면 위에 알리고 원본 내려받기를 보인다.
 import { tabContext } from "../../lib/tab.js";
 import * as fsa from "../../lib/fsa.js";
 import { FROM_LIST, displayName } from "./assets_index.js";
-import { docName, imageName, imageType, linkKind } from "./doc_frame.js";
+import { blockedNotice, docName, handleLink, imageName, imageType, isExternalUrl } from "./doc_frame.js";
 
 const $ = (id) => document.getElementById(id);
-const frame = $("doc");
+let frame = $("doc");
 let urls = [];
 
 class Missing extends Error {}
@@ -64,45 +65,62 @@ async function dataUrl(folder, name) {
   }
 }
 
-// 문서 HTML 을 실행·로드 없이 파싱해(DOMParser) 그림·바깥 링크만 고친 뒤 다시 글로 만든다. 스크립트 수를 함께 돌려준다.
+// 문서 HTML 을 실행·로드 없이 파싱해(DOMParser) 고친 뒤 다시 글로 만든다.
+// <base> 와 모든 target 속성을 지운다(새 창·다른 창으로 가는 길을 남기지 않는다). 같은 폴더 그림은 data: 로 바꿔 넣는다.
+// 막히는 것(스크립트·on* 속성·바깥 그림·바깥 스타일시트와 글꼴)의 수를 함께 돌려준다.
 async function prepare(folder, text) {
   const doc = new DOMParser().parseFromString(text, "text/html");
-  for (const a of doc.querySelectorAll("a[href]")) {
-    if (linkKind(a.getAttribute("href")).kind === "external") {
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-    }
-  }
+  doc.querySelectorAll("base").forEach((el) => el.remove());
+  doc.querySelectorAll("[target]").forEach((el) => el.removeAttribute("target"));
+  let images = 0;
   for (const img of doc.querySelectorAll("img[src]")) {
-    const name = imageName(img.getAttribute("src"));
+    const src = img.getAttribute("src");
+    const name = imageName(src);
     if (name) img.setAttribute("src", (await dataUrl(folder, name)) ?? "");
+    else if (isExternalUrl(src)) images += 1;
   }
+  const styleText = [...doc.querySelectorAll("style")].map((el) => el.textContent).join("\n");
+  const styles = [...doc.querySelectorAll("link[href]")]
+    .filter((el) => /(^|\s)stylesheet(\s|$)/i.test(el.getAttribute("rel") ?? "") && isExternalUrl(el.getAttribute("href"))).length
+    + (styleText.match(/(?:@import\s+(?:url\()?|url\()\s*["']?(?:https?:)?\/\//gi) ?? []).length;
   const scripts = doc.querySelectorAll("script").length;
   const handlers = [...doc.querySelectorAll("*")].filter((el) => [...el.attributes].some((attr) => /^on/i.test(attr.name))).length;
   const html = (doc.doctype ? "<!doctype html>\n" : "") + doc.documentElement.outerHTML;
-  return { html, scripts, handlers };
+  return { html, counts: { scripts, handlers, images, styles } };
 }
 
-// 문서 안 클릭: 같은 폴더 문서는 이 뷰어로, 막을 링크는 막고 알린다. 앵커·바깥 링크는 브라우저에 맡긴다.
-function intercept() {
+// 같은 폴더 파일(pdf·그림)을 내려받는다. 새 탭에서 열리지 않게 부모가 download 링크를 만들어 누른다.
+async function downloadFile(file) {
+  try {
+    const { settings } = await tabContext("assets");
+    const handle = await settings.folder.getFileHandle(file);
+    const a = Object.assign(document.createElement("a"), { href: blobUrl([await (await handle.getFile()).arrayBuffer()], "application/octet-stream"), download: file });
+    a.click();
+  } catch {
+    note(`링크의 파일을 찾지 못했다: ${file}`, "linknote");
+  }
+}
+
+// 문서 안 링크의 click·auxclick(가운데 클릭)을 모두 부모가 받는다(doc_frame.js handleLink).
+// 문서를 다 읽었으면 문서 blob: 주소를 거둔다. iframe 안 문서는 그대로 남고, 같은 주소로 다른 곳에서 다시 열 수 없다.
+function attach(docUrl) {
+  URL.revokeObjectURL(docUrl);
+  urls = urls.filter((url) => url !== docUrl);
   let inner;
   try {
     inner = frame.contentDocument;
   } catch {
     return;
   }
-  inner?.addEventListener("click", (event) => {
-    const a = event.target.closest?.("a[href]");
-    if (!a) return;
-    const kind = linkKind(a.getAttribute("href"));
-    if (kind.kind === "doc") {
-      event.preventDefault();
-      location.hash = encodeURIComponent(kind.file);
-    } else if (kind.kind === "blocked") {
-      event.preventDefault();
-      note(`링크를 열지 않았다: ${a.getAttribute("href")} — ${kind.why}.`, "linknote");
-    }
-  });
+  const actions = {
+    scrollTo: (id) => (id ? inner.getElementById(id) ?? inner.getElementsByName(id)[0] : null)?.scrollIntoView({ block: "start" }),
+    openExternal: (href) => window.open(new URL(href, location.href).href, "_blank", "noopener,noreferrer"),
+    // 문서→문서 이동은 기록을 남기지 않아 '← 목록'(뒤로 가기)이 목록으로 돌아간다.
+    openDoc: (file) => location.replace("#" + encodeURIComponent(file)),
+    openFile: (file) => downloadFile(file),
+    note: (text) => note(text, "linknote"),
+  };
+  for (const type of ["click", "auxclick"]) inner?.addEventListener(type, (event) => handleLink(event, actions), true);
 }
 
 function reconnect(folder) {
@@ -119,7 +137,13 @@ async function load() {
   note("");
   note("", "linknote");
   $("download").hidden = true;
-  const name = decodeURIComponent(location.hash.slice(1));
+  let name;
+  try {
+    name = decodeURIComponent(location.hash.slice(1));
+  } catch {
+    message("주소의 문서 이름을 읽을 수 없다(깨진 %인코딩). 목록에서 문서를 다시 누른다.");
+    return;
+  }
   if (!name) { message("열 문서 파일명이 없다. 목록에서 문서를 누른다."); return; }
   const title = displayName(name.normalize("NFC")) || name;
   $("title").textContent = title;
@@ -128,19 +152,24 @@ async function load() {
     const { folder, file } = await open(name);
     if (file === null) { message("브라우저가 폴더 접근 권한을 다시 묻는다.", reconnect(folder)); return; }
     const bytes = await file.arrayBuffer();
-    const { html, scripts, handlers } = await prepare(folder, new TextDecoder("utf-8").decode(bytes));
+    const { html, counts } = await prepare(folder, new TextDecoder("utf-8").decode(bytes));
     const download = $("download");
-    download.href = blobUrl([bytes], "text/html");
+    // 원본 바이트 그대로. HTML 로 열리지 않게(같은 출처 탭에서 렌더되지 않게) 형식은 octet-stream 이다.
+    download.href = blobUrl([bytes], "application/octet-stream");
     download.download = name;
-    if (scripts || handlers) {
-      note(`이 문서의 스크립트 ${scripts}개${handlers ? `·이벤트 속성 ${handlers}곳` : ""}은 웹 화면에서 실행하지 않는다(보안). `
-        + "스크립트로 그리는 그림·차트·버튼은 비거나 움직이지 않는다. 원본을 내려받아 열거나, ← 목록의 경로 복사로 Vault 에서 연다.");
-      download.hidden = false;
-    }
+    const notice = blockedNotice(counts);
+    note(notice);
+    download.hidden = !notice;
     $("msg").hidden = true;
-    frame.hidden = false;
-    frame.onload = intercept;
-    frame.src = blobUrl([html], "text/html;charset=utf-8");
+    // iframe 의 src 를 바꾸면 탭 기록에 iframe 항목이 쌓여 '← 목록'(뒤로 가기)이 앞 문서(거둔 blob)로 간다.
+    // 문서마다 sandbox 속성째 새 iframe 으로 갈아 끼워 기록을 남기지 않는다.
+    const docUrl = blobUrl([html], "text/html;charset=utf-8");
+    const fresh = frame.cloneNode(false);
+    fresh.hidden = false;
+    fresh.onload = () => attach(docUrl);
+    fresh.src = docUrl;
+    frame.replaceWith(fresh);
+    frame = fresh;
   } catch (err) {
     message(`${name} 을(를) 열지 못했다: ${err instanceof Missing ? "파일이 없거나 열 수 없는 경로다(폴더 바로 아래, 숨김이 아닌 .html 만 연다)" : err.message}`);
   }

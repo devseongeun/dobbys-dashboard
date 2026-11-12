@@ -11,7 +11,7 @@
 // - 업무 삭제는 Canvas·순서 파일을 회의 폴더의 `.trash/<지운 시각>/`으로 옮긴다. 담긴 Vault 파일은 지우지 않는다.
 // 오류는 로컬판과 같은 상태 코드·문구의 EditError 다(서버 응답 대신 backend.js 가 화면에 넘긴다).
 import {
-  ORDER_DIR, UNGROUPED_ID, buildBlocks, childDir, fileIn, groupOf, inside, isAbsent, isObject, nodeRect, readCanvas, readOrder,
+  ORDER_DIR, UNGROUPED_ID, badName, buildBlocks, childDir, fileIn, groupOf, inside, isAbsent, isObject, nodeRect, readCanvas, readOrder,
   resolveMeeting, resolveVaultFile, splitName, versionOf,
 } from "./meetings_canvas.js";
 import { pyStrip } from "../plans/plans_index.js";
@@ -90,6 +90,7 @@ export function dumpOrder(order) {
 }
 
 async function exists(dir, name) {
+  if (badName(name)) return false;
   try {
     await dir.getFileHandle(name);
     return true;

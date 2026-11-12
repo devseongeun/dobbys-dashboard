@@ -101,14 +101,9 @@ export function fileHandle(path, options = {}) {
     kind: "file",
     name: path.split("/").at(-1),
     path,
+    // 브라우저처럼 File(Blob: arrayBuffer·text·slice, lastModified)을 준다.
     async getFile() {
-      const bytes = readFileSync(handle.path);
-      const info = statSync(handle.path);
-      return {
-        name: handle.name, size: bytes.byteLength, lastModified: Math.floor(info.mtimeMs),
-        async arrayBuffer() { return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength); },
-        async text() { return bytes.toString("utf-8"); },
-      };
+      return new File([readFileSync(handle.path)], handle.name, { lastModified: Math.floor(statSync(handle.path).mtimeMs) });
     },
     async createWritable({ keepExistingData = false } = {}) {
       const target = handle.path;

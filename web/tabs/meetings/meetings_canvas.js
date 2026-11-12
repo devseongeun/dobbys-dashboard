@@ -28,8 +28,10 @@ const SPACE = /^[\t\n\x0b\x0c\r\x1c-\x1f \x85\xa0  - \u2028\u2029  \u3
 const DATE_PREFIX = /^\p{Nd}{4}-\p{Nd}{2}-\p{Nd}{2}/u;
 // Python re 의 `$` 는 끝의 줄바꿈 하나 앞에서도 맞는다.
 const COLOR = /^(?:[1-6]|#[0-9a-fA-F]{3,8})\n?$/;
-// FSA 가 '없다'로 답하는 오류. 그 밖(권한 등)은 그대로 올린다.
-const ABSENT = new Set(["NotFoundError", "TypeMismatchError", "TypeError"]);
+// FSA 가 '없다'로 답하는 오류. 그 밖(권한·이름 거절 TypeError·코드 실수)은 그대로 올린다.
+const ABSENT = new Set(["NotFoundError", "TypeMismatchError"]);
+// FSA 가 TypeError 로 거절하는 이름(빈 값·.·..·경로 구분자·NUL). 찾기 전에 걸러 '없음'으로 본다.
+export const badName = (name) => typeof name !== "string" || name === "" || name === "." || name === ".." || /[/\\\0]/.test(name);
 
 /** Canvas JSON 을 블록으로 읽을 수 없다. */
 export class CanvasError extends Error {}
@@ -60,6 +62,7 @@ export function splitName(stem) {
 export async function childDir(dir, parts) {
   let current = dir;
   for (const part of parts) {
+    if (badName(part)) return null;
     try {
       current = await current.getDirectoryHandle(part);
     } catch (error) {
@@ -71,6 +74,7 @@ export async function childDir(dir, parts) {
 }
 
 export async function fileIn(dir, name) {
+  if (badName(name)) return null;
   try {
     return await dir.getFileHandle(name);
   } catch (error) {

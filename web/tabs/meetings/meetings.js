@@ -3,7 +3,8 @@
 // 로컬판과 다른 곳(나머지 함수는 같다 — tests/js/meetings_web/same_screen.test.js):
 // - getJson·postJson: 서버 fetch 대신 backend.js(같은 주소·같은 응답 모양, 폴더는 FSA 핸들로 직접 읽고 쓴다). 409 면 알리고 다시 읽는다.
 // - renderMarkdown: md·메모의 원시 HTML 을 plans 뷰어와 같은 허용 목록(sanitize.js)으로 거른다.
-// - renderPreview: /file 대신 Vault 핸들에서 읽은 Blob. HTML·SVG·이미지는 sandbox iframe(스크립트·같은 출처 접근 없음).
+// - renderPreview: /file 대신 Vault 핸들에서 읽은 Blob. 격리 규칙은 preview_frame.js(HTML 은 스크립트·새 창 없는 sandbox
+//   iframe 이고 링크는 부모가 처리, SVG·그림은 <img>, 다 읽으면 blob 주소를 거둔다).
 // - 시작: 설정의 Vault·회의 폴더를 연결하고, 못 하면 까닭(권한이 'prompt' 면 '폴더 다시 연결')을 보인다.
 import {
   clampPane, dropIndex, fileInfo, filterMeetings, isWebUrl, linkLabel, obsidianToMarkdown, obsidianUri, parseState,
@@ -13,6 +14,7 @@ import { sanitize } from "../plans/sanitize.js";
 import { tabContext } from "../../lib/tab.js";
 import * as fsa from "../../lib/fsa.js";
 import { openFolders } from "./backend.js";
+import { cleanHtml, handleLink, previewKind, previewNode } from "./preview_frame.js";
 
 const $ = (id) => document.getElementById(id);
 // Obsidian Canvas 색 프리셋 1~6.
@@ -35,7 +37,7 @@ let searchTimer = 0;
 let noticeTimer = 0;
 const tree = { open: new Set(), dirs: new Map() };
 let backend = null; // backend.js. 시작할 때 설정의 폴더로 만든다.
-let previewUrl = ""; // 미리보기 iframe 의 Blob 주소. 바뀌면 이전 것을 놓는다.
+let previewUrl = ""; // 미리보기의 Blob 주소. 미리보기가 바뀌거나 닫히면 거둔다(HTML·그림은 다 읽자마자 거둔다).
 
 function el(tag, cls, text) {
   const node = document.createElement(tag);
@@ -513,8 +515,21 @@ function setPreviewUrl(url) {
   previewUrl = url;
 }
 
+// 미리보기 HTML 안 링크를 부모가 받는다(preview_frame.js handleLink). 바깥 주소만 새 탭(noopener)으로 연다.
+function wirePreviewLinks(frame) {
+  let inner;
+  try { inner = frame.contentDocument; } catch { return; }
+  if (!inner) return;
+  const actions = {
+    scrollTo: (id) => (id ? inner.getElementById(id) ?? inner.getElementsByName(id)[0] : null)?.scrollIntoView({ block: "start" }),
+    openExternal: (href) => window.open(new URL(href, location.href).href, "_blank", "noopener,noreferrer"),
+    note: (text) => notice(text),
+  };
+  for (const type of ["click", "auxclick"]) inner.addEventListener(type, (event) => handleLink(event, actions), true);
+}
+
 // 오른쪽 미리보기. 업무에 담긴 파일이면 그 카드 정보로, 아니면(Vault 트리에서 고른 파일) 경로로 판단한다.
-// 파일은 Vault 핸들에서 Blob 으로 읽는다. md·txt 는 글로 그리고, 나머지는 Blob 주소 iframe 으로 연다.
+// 파일은 Vault 핸들에서 Blob 으로 읽는다. md·txt 는 글로, HTML 은 sandbox iframe, SVG·그림은 <img>, PDF 는 iframe 으로 연다.
 async function renderPreview(state, detail) {
   const path = state.file;
   document.body.classList.toggle("previewing", Boolean(path));
@@ -537,28 +552,27 @@ async function renderPreview(state, detail) {
   body.replaceChildren();
   setPreviewUrl("");
   if (view.missing) { body.append(el("p", "msg err", "파일이 없다. Canvas의 경로가 바뀌었는지 확인한다: " + path)); return; }
-  if (!view.preview) { body.append(el("p", "msg", "이 형식은 미리보기를 지원하지 않는다. Obsidian에서 연다.")); return; }
+  const kind = previewKind(view.ext);
+  if (!view.preview || kind === "none") { body.append(el("p", "msg", "이 형식은 미리보기를 지원하지 않는다. Obsidian에서 연다.")); return; }
   body.append(el("p", "msg", "불러오는 중…"));
   try {
     const blob = await backend.file(path);
     // 같은 키의 다음 sync 는 본문을 건드리지 않으므로 ticket 이 아니라 키로 판단한다.
     if (previewKey !== key) return;
-    if (view.ext !== ".md" && view.ext !== ".txt") {
-      const frame = el("iframe", "frame");
-      // PDF(브라우저 PDF 뷰어는 sandbox 안에서 열리지 않는다) 말고는 스크립트·같은 출처 접근 없이 연다.
-      if (view.ext !== ".pdf") frame.setAttribute("sandbox", "allow-popups allow-popups-to-escape-sandbox");
-      frame.title = view.name;
-      setPreviewUrl(URL.createObjectURL(blob));
-      frame.src = previewUrl;
-      body.replaceChildren(frame);
+    if (kind === "text") {
+      const text = await blob.text();
+      if (previewKey !== key) return;
+      const doc = el("article", "md doc");
+      if (view.ext === ".md") renderMarkdown(doc, text);
+      else doc.append(el("pre", "", text));
+      body.replaceChildren(doc);
       return;
     }
-    const text = await blob.text();
+    const shown = kind === "html" ? new Blob([cleanHtml(await blob.text(), new DOMParser())], { type: "text/html;charset=utf-8" }) : blob;
     if (previewKey !== key) return;
-    const doc = el("article", "md doc");
-    if (view.ext === ".md") renderMarkdown(doc, text);
-    else doc.append(el("pre", "", text));
-    body.replaceChildren(doc);
+    setPreviewUrl(URL.createObjectURL(shown));
+    const revoke = (url) => { URL.revokeObjectURL(url); if (previewUrl === url) previewUrl = ""; };
+    body.replaceChildren(previewNode(document, kind, previewUrl, view.name, { revoke, onFrame: wirePreviewLinks }));
   } catch (err) {
     if (previewKey !== key) return;
     previewKey = ""; // 실패한 키는 남기지 않아 다음 sync 가 다시 시도한다.
@@ -749,7 +763,7 @@ function showBlocked({ error, pending = [] }) {
     button.disabled = true;
     try {
       let granted = true;
-      for (const handle of pending) granted = (await fsa.reconnect(handle, "readwrite")) === "granted" && granted;
+      for (const { handle, mode } of pending) granted = (await fsa.reconnect(handle, mode)) === "granted" && granted;
       if (granted) { location.reload(); return; }
     } catch { /* 다시 누르게 둔다 */ }
     button.disabled = false;

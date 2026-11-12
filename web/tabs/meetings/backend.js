@@ -25,6 +25,7 @@ export function reason(error) {
   }
   if (error?.name === "NotFoundError") return "폴더를 찾을 수 없다(옮겨졌거나 지워졌다). ⚙ 설정에서 다시 고른다";
   if (error?.name === "QuotaExceededError") return "저장 공간이 모자라 쓰지 못했다";
+  if (error?.name === "TypeError" && /name/i.test(error?.message ?? "")) return `브라우저가 받지 않는 파일 이름이다(${error.message})`;
   return `${error?.name ?? "Error"}: ${error?.message ?? error}`;
 }
 
@@ -111,9 +112,8 @@ export function createBackend({ root, vault, rootParts }) {
     const handle = await resolveVaultFile(vault, path);
     const ext = handle ? pySuffix(handle.name).toLowerCase() : "";
     if (!Object.hasOwn(PREVIEW_MIME, ext)) throw new HttpError(404, "not found");
-    const type = PREVIEW_MIME[ext];
     const source = await handle.getFile();
-    return new Blob([await source.arrayBuffer()], { type });
+    return source.slice(0, source.size, PREVIEW_MIME[ext]); // 복사 없이 형식만 바꾼다
   }
 
   // 화면은 로컬판처럼 오류 문구를 그대로 보인다. 브라우저 쪽 실패는 읽을 수 있는 문구의 500 으로.
@@ -129,7 +129,7 @@ export function createBackend({ root, vault, rootParts }) {
   return { get: guard(get), post: guard(post), file: guard(file) };
 }
 
-// 탭 설정({vault, folder}: FSA 폴더 핸들)으로 backend 를 연다. {backend} 또는 {error, pending: 권한을 다시 물어야 할 핸들}.
+// 탭 설정({vault, folder}: FSA 폴더 핸들)으로 backend 를 연다. {backend} 또는 {error, pending: [{handle, mode}] 권한을 다시 물을 것}.
 // io 는 web/lib/fsa.js(테스트에서 바꿔 끼운다).
 export async function openFolders(settings, io = fsa) {
   const vault = settings?.vault;
@@ -137,10 +137,13 @@ export async function openFolders(settings, io = fsa) {
   const handles = io.isHandle(vault) && io.isHandle(folder);
   if (!io.supported() && !handles) return { error: "이 브라우저는 폴더 읽기·쓰기(File System Access API)를 지원하지 않는다. Chrome·Edge 에서 연다." };
   if (!handles) return { error: "Obsidian Vault 폴더·회의 폴더가 없다. ⚙ 설정에서 고른다." };
-  const states = [await io.permission(vault, "readwrite"), await io.permission(folder, "readwrite")];
+  // Vault 는 읽기만(파일 카드·트리·미리보기), 쓰기는 회의 폴더 핸들로만 한다.
+  const wanted = [{ handle: vault, mode: "read" }, { handle: folder, mode: "readwrite" }];
+  const states = [];
+  for (const { handle, mode } of wanted) states.push(await io.permission(handle, mode));
   if (states.some((state) => state !== "granted" && state !== "prompt")) return { error: "폴더 권한이 거부됐다. ⚙ 설정에서 폴더를 다시 고른다." };
-  const pending = [vault, folder].filter((_, i) => states[i] === "prompt");
-  if (pending.length) return { error: "브라우저가 폴더 읽기·쓰기 권한을 다시 묻는다. 아래 버튼을 눌러 허용한다.", pending };
+  const pending = wanted.filter((_, i) => states[i] === "prompt");
+  if (pending.length) return { error: "브라우저가 폴더 접근 권한을 다시 묻는다. 아래 버튼을 눌러 허용한다.", pending };
   try {
     if (!(await hasObsidian(vault))) return { error: OUTSIDE_VAULT };
   } catch (error) {

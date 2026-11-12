@@ -195,10 +195,12 @@ describe("옮기기(이름 바꾸기·휴지통)", () => {
 });
 
 describe("설정의 Vault·회의 폴더", () => {
+  let asked;
   const io = (permission = "granted") => ({
-    supported: () => true, isHandle: (h) => Boolean(h?.kind), permission: async () => permission,
+    supported: () => true, isHandle: (h) => Boolean(h?.kind), permission: async (h, mode) => { asked.push([h.name, mode]); return permission; },
     relativePath: async (a, b) => a.resolve(b), errorText: (e) => String(e),
   });
+  beforeEach(() => { asked = []; });
 
   test(".obsidian 이 없으면 로컬판 OUTSIDE_VAULT 문구, 회의 폴더가 Vault 밖이면 막는다", async () => {
     const vault = dirHandle(vaultPath);
@@ -212,11 +214,12 @@ describe("설정의 Vault·회의 폴더", () => {
     expect(await validate({ vault, folder: vault }, io())).toEqual({});
   });
 
-  test("openFolders: 권한이 prompt 면 다시 연결할 핸들을, 아니면 backend 를 준다", async () => {
+  test("openFolders: Vault 는 read·회의 폴더는 readwrite 권한을 보고, prompt 면 다시 연결할 핸들·모드를, 아니면 backend 를 준다", async () => {
     const vault = dirHandle(vaultPath);
     const folder = dirHandle(rootPath);
     const pending = await openFolders({ vault, folder }, io("prompt"));
-    expect([pending.backend, pending.pending.length]).toEqual([undefined, 2]);
+    expect([pending.backend, pending.pending.map((p) => [p.handle.name, p.mode])]).toEqual([undefined, [["vault", "read"], ["70-meetings", "readwrite"]]]);
+    expect(asked).toEqual([["vault", "read"], ["70-meetings", "readwrite"]]); // Vault 는 읽기 권한만 묻는다
     expect((await openFolders({ vault, folder }, io("denied"))).error).toContain("거부");
     expect((await openFolders({ vault: folder, folder }, io())).error).toBe(OUTSIDE_VAULT);
     expect((await openFolders({}, io())).error).toContain("⚙ 설정");

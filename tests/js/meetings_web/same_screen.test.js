@@ -39,7 +39,7 @@ function chunks(source) {
 const CHANGED = [/^import /, /^} from /, /^const EDITOR /, /^async function getJson\(/, /^async function postJson\(/, /^function getJson\(/,
   /^function postJson\(/, /^function renderMarkdown\(/, /^async function renderPreview\(/, /^await refreshList\(\);/, /^ensureSelection\(\);$/,
   /^renderTree\(\);$/, /^sync\(\);$/];
-const WEB_ONLY = [/^let backend /, /^let previewUrl /, /^function setPreviewUrl\(/, /^function showBlocked\(/, /^async function connect\(/,
+const WEB_ONLY = [/^let backend /, /^let previewUrl /, /^function setPreviewUrl\(/, /^function wirePreviewLinks\(/, /^function showBlocked\(/, /^async function connect\(/,
   /^if \(await connect\(\)\) \{/];
 const keep = (patterns) => (chunk) => !patterns.some((re) => re.test(chunk.key));
 
@@ -52,7 +52,7 @@ test("웹 meetings.js 는 서버 호출·md 정제·미리보기·시작 말고�
 });
 
 test("웹 화면은 서버에 파일을 묻지 않는다(fetch·XHR 없음), md 는 plans 와 같은 sanitize 를 거친다", () => {
-  for (const name of ["meetings", "backend", "meetings_canvas", "meetings_edit", "vault_tree", "tab"]) {
+  for (const name of ["meetings", "backend", "meetings_canvas", "meetings_edit", "vault_tree", "tab", "preview_frame"]) {
     const calls = read(`web/tabs/meetings/${name}.js`).match(/(^|[^.\w])fetch\(|XMLHttpRequest|sendBeacon/gm) ?? [];
     expect({ name, calls }).toEqual({ name, calls: [] });
   }
@@ -77,13 +77,13 @@ print(json.dumps({k: str(v.relative_to(web_serve.REPO_ROOT)) for k, v in web_ser
   }
 });
 
-test("탭 항목은 로컬판 TAB.describe() 와 같은 문구이고, 폴더 칸만 Vault·회의 폴더 둘(readwrite)이다", () => {
+test("탭 항목은 로컬판 TAB.describe() 와 같은 문구이고, 폴더 칸만 Vault(읽기)·회의 폴더(읽기·쓰기) 둘이다", () => {
   const local = python(`
 import json
 from tabs.meetings import TAB
 print(json.dumps(TAB.describe(), ensure_ascii=False))`);
   for (const key of ["id", "label", "icon", "question", "summary", "experimental", "templates"]) expect(MEETINGS_TAB[key]).toEqual(local[key]);
-  expect(MEETINGS_TAB.fields.map((f) => [f.key, f.kind, f.required, f.mode])).toEqual([["vault", "dir", true, "readwrite"], ["folder", "dir", true, "readwrite"]]);
+  expect(MEETINGS_TAB.fields.map((f) => [f.key, f.kind, f.required, f.mode])).toEqual([["vault", "dir", true, "read"], ["folder", "dir", true, "readwrite"]]);
   const [folder] = local.fields;
   expect(MEETINGS_TAB.fields[1].label).toBe(folder.label);
 });

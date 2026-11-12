@@ -215,6 +215,15 @@ describe("정제(sanitizeHtml): 진짜 href·다른 문서·실행이 남지 않
     expect(sanitizeHtml(page([], [E("style", {}, [T("LATE:" + JSON.stringify(late))])]), parse, dom)).toEqual({ error: UNSAFE });
   });
 
+  test("SVG SMIL(set·animate·animateMotion·animateTransform·discard)은 지운다: 정제 뒤에 <a> href 를 만들어 내지 못하게", () => {
+    const smil = ["set", "animate", "animateMotion", "animateTransform", "discard"].map((tag) => E(tag, { attributeName: "href", to: "https://smil.example/", begin: "0s" }));
+    const input = page([], [E("svg", {}, [E("a", { [LINK_ATTR]: "#x" }, [E("text", {}, [T("SMIL 링크")]), ...smil])])]);
+    const { html, error } = sanitizeHtml(input, parse, dom);
+    expect(error).toBeUndefined();
+    expect(html).not.toContain("smil.example");
+    expect(result(html).map((e) => e.t)).toEqual(["html", "head", "meta", "style", "body", "svg", "a", "text"]);
+  });
+
   test("중첩 iframe srcdoc 안 링크는 iframe 째 사라진다(안쪽은 정제·처리기가 닿지 않는다)", () => {
     const input = page([], [E("p", {}, [T("앞")]), E("iframe", { srcdoc: page([], [E("a", { href: "https://inner.example/" })]) })]);
     const { html } = sanitizeHtml(input, parse, dom);

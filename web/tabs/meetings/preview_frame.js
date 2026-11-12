@@ -14,7 +14,8 @@
 //    링크 하나로 sandbox 없는 탭이 열린다. 그래서 둘 다 주지 않는다(tests/js/meetings_web/preview_frame.test.js).
 // 3. 문서 CSP: 정제한 문서 head 맨 앞에 DOC_CSP 를 넣는다(네트워크 요청 0, 그림·글꼴·미디어는 data: 만). 상대 주소가
 //    about:srcdoc 이 아닌 부모(meetings.html) 기준으로 풀려도 서버로 요청이 가지 않는다. 셸의 CSP 도 함께 물려받는다.
-// 4. 정제(sanitize): DROP 요소(script·base·link·iframe·frame·object·embed 등, 안쪽은 정제·처리기가 닿지 않는다)와
+// 4. 정제(sanitize): DROP 요소(script·base·link·iframe·frame·object·embed 등, 안쪽은 정제·처리기가 닿지 않는다,
+//    SVG SMIL set·animate·animateMotion·animateTransform·discard)와
 //    meta refresh 를 지우고, 모든 on*·target·formtarget·srcdoc·ping 속성과 href·xlink:href 를 지운다. 링크(a·area·SVG a)의
 //    주소는 LINK_ATTR 로 옮긴다: 문서 안에 진짜 href 가 없으니 load 전·처리기 없이도 Cmd+클릭·끌기로 열 주소가 없다.
 //    파서 왕복으로 모양이 바뀌는 HTML(mXSS: form 중첩 + math mglyph style 등)은 정제 → 직렬화 → 다시 파싱을 결과가 바뀌지
@@ -32,8 +33,10 @@ export const UNSAFE = "이 HTML 은 안전하게 정리되지 않아 미리보�
 
 const EXTERNAL = new Set(["http", "https", "mailto"]);
 const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"]);
-// 통째로 지우는 요소: 실행(script), 주소 기준(base), 바깥 자원(link), 다른 문서를 품는 것(안쪽은 정제·처리기가 닿지 않는다).
-const DROP = new Set(["script", "base", "link", "iframe", "frame", "frameset", "object", "embed", "portal", "fencedframe", "applet"]);
+// 통째로 지우는 요소: 실행(script), 주소 기준(base), 바깥 자원(link), 다른 문서를 품는 것(안쪽은 정제·처리기가 닿지 않는다),
+// SVG SMIL 애니메이션(<set attributeName="href" to="…">·<animate> 류는 정제가 끝난 뒤에 링크 주소를 만들어 낸다).
+const DROP = new Set(["script", "base", "link", "iframe", "frame", "frameset", "object", "embed", "portal", "fencedframe", "applet",
+  "set", "animate", "animatemotion", "animatetransform", "discard"]);
 const DROP_ATTRS = new Set(["target", "formtarget", "srcdoc", "ping", "href", "xlink:href"]);
 const isLink = (tag) => tag === "a" || tag === "area";
 const isRefresh = (dom, el) => /^\s*refresh\s*$/i.test(dom.getAttr(el, "http-equiv") ?? "");

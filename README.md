@@ -200,7 +200,7 @@ HOST=127.0.0.1 PORT=8788 ALLOWED_ORIGINS=https://dash.example.com python3 web_se
 | `HOST` | `127.0.0.1` | 바인딩 주소. 리버스 프록시 뒤에서는 그대로 둔다. |
 | `PORT` | `8788` | 포트. |
 | `JIRA_HOST_SUFFIX` | `.atlassian.net` | `/api/jira` 가 받는 Jira 주소 끝. `<사이트>` 는 영문 소문자·숫자·`-` 한 단어다. |
-| `TROMBONE_BASE` | 없음 | `/api/trombone` 이 부르는 기획서(TROMBONE) 주소(`http(s)://호스트[:포트]`, 예: `http://기획서-서버:8088`). 비우면 코멘트 탭이 '서버에 기획서 주소가 설정되지 않았다' 를 보인다. |
+| `TROMBONE_BASE` | 없음 | `/api/trombone` 이 부르는 기획서(TROMBONE) 주소(`http(s)://호스트[:포트][/하위 경로]`, 예: `http://기획서-서버:8088`. 하위 경로의 `.`·`..`·빈 조각·`%` 인코딩은 거절). 비우면 코멘트 탭이 '서버에 기획서 주소가 설정되지 않았다' 를 보인다. |
 | `ALLOWED_ORIGINS` | `http://127.0.0.1:<PORT>,http://localhost:<PORT>` | 쉼표 구분 origin. 요청 `Host` 는 이 중 하나의 host[:port] 여야 하고(아니면 421), `/api/*` 의 `Origin` 은 이 중 하나와 같아야 한다(아니면 403). |
 
 사내 서버에서는 HTTPS 리버스 프록시(nginx 등) 뒤에 둔다. 프록시는 원래 `Host` 를 포트까지 넘기고(nginx `proxy_set_header Host $http_host;`. `$host` 는 포트를 떼어 443 이 아닌 포트에서 421 이 된다), `ALLOWED_ORIGINS` 에 사용자가 여는 주소(예: `https://dash.example.com`)를 적는다. 하위 경로(`/dashboard/`)에 올려도 화면은 상대 경로만 쓰므로 그대로 동작한다. 이때 프록시가 접두어를 떼고 넘긴다.

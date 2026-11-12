@@ -151,7 +151,10 @@ async function reload() {
   buildChips(); updateHeader(); render(); updateApply();
   return { changed: before !== JSON.stringify(DATA), secs: ((Date.now() - t0) / 1000).toFixed(1) };
 }
+// 한 번에 하나만 돈다. 권한 창·확인 창이 떠 있는 사이 다른 버튼을 눌러도 겹쳐 돌지 않는다
+// (👀 반응 API 가 토글이라 같은 건을 두 번 보내면 떼어진다).
 async function guarded(label, fn) {
+  if (busy) return;
   busy = true; updateApply();
   rstat.className = "rstat"; rstat.textContent = label;
   try { await fn(); } catch (e) { if (e.status === 401) needLogin(e.message); else { rstat.className = "rstat err"; rstat.textContent = e.message; } } finally { busy = false; updateApply(); }
@@ -162,7 +165,7 @@ refreshBtn.onclick = () => guarded("기획서 API 호출 중…", async () => {
   rstat.textContent = (r.changed ? "갱신됨" : "변경 없음") + " · 코멘트 " + total() + "건 / 화면 " + DATA.length + "개 · " + r.secs + "초";
 });
 applyBtn.onclick = () => {
-  if (!sel.size) return;
+  if (busy || !sel.size) return;
   if (!confirm("체크한 " + sel.size + "건에 기획서 👀 를 붙입니다. 진행할까요?")) return;
   guarded("👀 반영 중…", async () => {
     const r = await service.react([...sel]);
@@ -173,17 +176,15 @@ applyBtn.onclick = () => {
       + (r.failed.length ? " · 실패 " + r.failed.length + "건: " + r.failed.join(", ") : "") + " · 화면 최신화 완료";
   });
 };
-exportBtn.onclick = async () => {
-  // 쓰기 권한은 사용자 클릭 안에서만 받을 수 있다. 다른 일보다 먼저 묻는다.
+exportBtn.onclick = () => guarded("체크리스트 저장 중…", async () => {
+  // 쓰기 권한은 사용자 클릭 안에서만 받을 수 있다. 다른 일보다 먼저 묻는다(권한 창이 떠 있는 동안에도 busy 라 다른 버튼이 막힌다).
   const dir = ctx?.settings?.export_dir;
   if (dir) {
     try { if ((await permission(dir, "readwrite")) !== "granted") await reconnect(dir, "readwrite"); } catch (e) { /* 아래 export 가 문구를 보인다 */ }
   }
-  guarded("체크리스트 저장 중…", async () => {
-    const r = await service.export();
-    rstat.className = "rstat ok"; rstat.textContent = "저장했습니다: " + r.folder + "/" + r.name;
-  });
-};
+  const r = await service.export();
+  rstat.className = "rstat ok"; rstat.textContent = "저장했습니다: " + r.folder + "/" + r.name;
+});
 lgo.onclick = () => guarded("로그인 중…", async () => {
   const id = lid.value.trim(), pw = lpw.value;
   if (!id || !pw) throw new Error("이메일과 비밀번호를 입력하세요.");
@@ -208,6 +209,7 @@ root.addEventListener("click", (e) => {
   const b = e.target.closest("[data-pri],[data-res]");
   if (!b) return;
   e.stopPropagation();
+  if (busy) return;
   const c = findComment(b.dataset.pri || b.dataset.res);
   if (!c) return;
   let args;

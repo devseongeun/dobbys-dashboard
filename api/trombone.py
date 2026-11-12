@@ -2,7 +2,7 @@
 
 브라우저는 사내망 TROMBONE 에 직접 닿지 않을 수 있어 서버가 전달만 한다(로컬판 tabs/comments/client.py 를 서버로 옮긴 것).
 열린 프록시가 되지 않게:
-- 대상 주소는 서버 환경변수 TROMBONE_BASE(`http(s)://호스트[:포트]`)로만 정한다. 브라우저가 보낸 주소는 받지 않는다.
+- 대상 주소는 서버 환경변수 TROMBONE_BASE(`http(s)://호스트[:포트][/하위 경로]`)로만 정한다. 브라우저가 보낸 주소는 받지 않는다.
   비어 있거나 형식이 틀리면 503.
 - 경로·메서드는 넷뿐이다(앞에 `/trbw/api` 가 붙는다).
     GET  api/trombone/comments                        → GET  /trbw/api/comments            (쿼리 없음)
@@ -77,19 +77,29 @@ def _header(headers, name: str) -> str | None:
 
 
 def base_url() -> str:
-    """TROMBONE_BASE 를 검사해 끝 `/` 를 뗀 값. 없거나 형식이 틀리면 Reject(503)."""
+    """TROMBONE_BASE 를 검사해 끝 `/` 를 뗀 값. 없거나 형식이 틀리면 Reject(503).
+
+    `http(s)://호스트[:포트][/하위 경로]`. 사내 TROMBONE 이 하위 경로(예: /wiki)에 있을 수 있어 경로를 받되,
+    `.`·`..`·빈 조각(`//`)·`%` 인코딩·역슬래시는 받지 않는다(어디를 가리키는지 한눈에 보이게).
+    """
     raw = (os.environ.get(ENV) or "").strip()
     if not raw:
         raise Reject(503, NOT_CONFIGURED)
+    bad = Reject(503, "서버의 TROMBONE_BASE 가 http(s)://호스트[:포트][/하위 경로] 형식이 아니다. 운영자가 고친다")
     try:
         parts = urllib.parse.urlsplit(raw)
-        port = parts.port  # 숫자가 아니면 ValueError
-    except ValueError:
-        port = -1
-    if (parts.scheme not in ("http", "https") or not parts.hostname or parts.username is not None
-            or parts.password is not None or parts.query or parts.fragment or port == -1
-            or any(c.isspace() or ord(c) < 0x20 for c in raw)):
-        raise Reject(503, "서버의 TROMBONE_BASE 가 http(s)://호스트[:포트] 형식이 아니다. 운영자가 고친다")
+        parts.port  # 숫자가 아니거나 범위 밖이면 ValueError
+        hostname = parts.hostname
+    except ValueError:  # http://[::1 같은 깨진 주소도 여기로 온다
+        raise bad from None
+    path = parts.path.rstrip("/")
+    segments = path.split("/")[1:] if path else []
+    if (parts.scheme not in ("http", "https") or not hostname or parts.username is not None
+            or parts.password is not None or parts.query or parts.fragment or "#" in raw or "?" in raw
+            or any(c.isspace() or ord(c) < 0x20 or ord(c) == 0x7f for c in raw)
+            or (path and not path.startswith("/")) or "\\" in path or "%" in path
+            or any(seg in ("", ".", "..") for seg in segments)):
+        raise bad
     return raw.rstrip("/")
 
 
@@ -158,12 +168,12 @@ def plan(request: Request) -> tuple[str, str, bytes | None, dict[str, str], list
             raise Reject(400, "이메일과 비밀번호를 입력한다")
         data = json.dumps({"loginId": login_id, "password": password}).encode("utf-8")
         return "POST", "/auth/login", data, {**headers, "Content-Type": "application/json"}, [password]
-    found = REACTIONS.match(tail)
+    found = REACTIONS.fullmatch(tail)
     if found:
         if method != "POST":
             raise Reject(405, "POST 만 받는다", allow="POST")
         comment_id = found[1]
-        if not COMMENT_ID.match(comment_id):
+        if not COMMENT_ID.fullmatch(comment_id):  # match 의 $ 는 끝 줄바꿈을 통과시킨다
             raise Reject(400, "코멘트ID 형식이 아니다")
         _no_query(request.query)
         body = _body(request)
@@ -172,7 +182,7 @@ def plan(request: Request) -> tuple[str, str, bytes | None, dict[str, str], list
             raise Reject(400, f"emoji 는 {DECIDED_EMOJI} 만 받는다")
         authorization = _header(request.headers, "authorization") or ""
         token = authorization[len("Bearer "):] if authorization.startswith("Bearer ") else ""
-        if not TOKEN_RE.match(token):
+        if not TOKEN_RE.fullmatch(token):
             raise Reject(401, "기획서 로그인이 필요하다(Authorization: Bearer)")
         data = json.dumps({"emoji": DECIDED_EMOJI}).encode("utf-8")
         return ("POST", f"/spec/comments/{comment_id}/reactions", data,

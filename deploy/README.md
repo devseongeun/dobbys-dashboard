@@ -68,7 +68,7 @@ curl http://127.0.0.1:8091/healthz           # ok
 | `IMAGE_TAG` | `local` | 이미지 번호(보통 커밋) |
 | `DOBBYS_COMMIT`·`DOBBYS_COMMIT_DATE` | 비움 | 사이드바 버전 줄(이미지에 .git 이 없어 빌드 때 굽는다) |
 | `JIRA_HOST_SUFFIX` | `.atlassian.net` | `/api/jira` 가 받는 Jira 주소 끝 |
-| `TROMBONE_BASE` | 비움 | `/api/trombone` 이 부르는 기획서(TROMBONE) 주소(예: `http://기획서-서버:8088`). 컨테이너에서 닿는 주소여야 한다. 비우면 코멘트 탭이 '서버에 기획서 주소가 설정되지 않았다' 를 보인다 |
+| `TROMBONE_BASE` | 비움 | `/api/trombone` 이 부르는 기획서(TROMBONE) 주소. `http(s)://호스트[:포트][/하위 경로]`(예: `http://기획서-서버:8088`, 하위 경로의 `.`·`..`·빈 조각은 거절). 컨테이너에서 닿는 주소여야 한다. 비우면 코멘트 탭이 '서버에 기획서 주소가 설정되지 않았다' 를 보인다 |
 
 포트는 사내 서버의 80(GitLab), 8088(와이어프레임), 8089·8443(AI Office), 8190(SCM)과 겹치지 않게 골랐다.
 

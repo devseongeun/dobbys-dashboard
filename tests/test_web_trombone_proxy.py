@@ -151,6 +151,12 @@ class AllowTest(ProxyCase):
             with self.subTest(query=query):
                 self.assertRefused(req("/comments", query=query))
 
+    def test_base_may_have_a_plain_sub_path(self):
+        os.environ["TROMBONE_BASE"] = "https://spec.example.org/trombone/v4/"
+        self.assertEqual(self.call(req("/config"))[:2], (200, {"base": "https://spec.example.org/trombone/v4"}))
+        self.call(req("/comments"))
+        self.assertEqual(self.opener.calls[0][1], "https://spec.example.org/trombone/v4/trbw/api/comments")
+
     def test_constants_match_local_client(self):
         from tabs.comments import client, model, serve
         self.assertEqual((proxy.API_PREFIX, proxy.TIMEOUT_SECONDS, proxy.DECIDED_EMOJI, proxy.COMMENT_ID.pattern),
@@ -160,7 +166,9 @@ class AllowTest(ProxyCase):
 class NotConfiguredTest(ProxyCase):
     def test_missing_or_bad_base_is_503_with_plain_message(self):
         for value in (None, "", "  ", "trombone:8088", "ftp://x", "http://", "http://u:p@host", "http://host?x=1",
-                      "http://host#a", "http://host:port", "http://ho st", "http://ho\nst"):
+                      "http://host#a", "http://host:port", "http://ho st", "http://ho\nst", "http://[::1", "http://host:99999",
+                      "http://host/sub/../x", "http://host/./x", "http://host//x", "http://host/a%2e%2e", "http://host/a\\b",
+                      "http://host/sub/..", "http://host?", "http://host#"):
             with self.subTest(value=value):
                 if value is None:
                     os.environ.pop("TROMBONE_BASE", None)
@@ -182,7 +190,8 @@ class RefuseTest(ProxyCase):
     def test_only_four_paths(self):
         for path in ("", "/", "/comment", "/comments/", "/comments/1", "/spec/", "/spec/comments", "/auth", "/auth/logout",
                      "/auth/login/x", "/spec/comments/CM1", "/spec/comments/CM1/reactions/x", "/spec/pages/P1/reactions",
-                     "/../comments", "/trbw/api/comments", "//evil.com/comments", "/admin"):
+                     "/../comments", "/trbw/api/comments", "//evil.com/comments", "/admin", "/comments\n",
+                     "/spec/comments/CM1/reactions\n", "/auth/login\n"):
             with self.subTest(path=path):
                 got, body, _ = self.call(req(path, "POST" if "reactions" in path or "auth" in path else "GET",
                                              body={} if "reactions" in path or "auth" in path else None))
@@ -223,13 +232,13 @@ class RefuseTest(ProxyCase):
                                headers={"Content-Type": "text/plain"}), 415)
 
     def test_reaction_shape_and_bearer(self):
-        for cid in ("CM.1", "a" * 41, "%2e%2e", "CM 1"):
+        for cid in ("CM.1", "a" * 41, "%2e%2e", "CM 1", "CM1\n", "CM1\r\n"):
             with self.subTest(cid=cid):
                 self.assertRefused(react(cid))
         for body in ({"emoji": "EMO001"}, {"emoji": "👀"}, {"emoji": "EMO005", "extra": 1}, {}):
             with self.subTest(body=body):
                 self.assertRefused(react(body=body))
-        for token in (None, "", "two words", "a\r\nX-Injected: 1", "x" * (proxy.TOKEN_MAX + 1)):
+        for token in (None, "", "two words", "a\r\nX-Injected: 1", "x" * (proxy.TOKEN_MAX + 1), "abc\n"):
             with self.subTest(token=token):
                 self.assertRefused(react(token=token), 401)
         self.assertRefused(react(token=None, headers={"Authorization": "Basic " + TOKEN}), 401)
@@ -375,6 +384,13 @@ class ThroughWebServeTest(unittest.TestCase):
         self.send("GET", "/api/trombone/spec?path=%2Fspec%2Fsecret-page", {"Origin": self.ORIGIN, "X-Dobbys-Proxy": "1"})
         self.assertEqual(self.log.getvalue(),
                          "POST /api/trombone/spec/comments/CM1/reactions 200\nGET /api/trombone/spec 200\n")
+
+    def test_encoded_newline_in_comment_id_is_400_not_500(self):
+        status, got = self.send("POST", "/api/trombone/spec/comments/CM1%0A/reactions",
+                                {"Origin": self.ORIGIN, "X-Dobbys-Proxy": "1", "Authorization": "Bearer " + TOKEN, **JSON},
+                                b'{"emoji": "EMO005"}')
+        self.assertEqual(status, 400, got)
+        self.assertEqual(self.opener.calls, [])
 
     def test_other_origin_or_missing_header_never_reaches_trombone(self):
         body = json.dumps(login_body()).encode()

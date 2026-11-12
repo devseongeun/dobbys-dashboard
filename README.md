@@ -173,7 +173,7 @@ cd ~/workspace/dobbys-dashboard && python3 serve.py
 
 ## 웹 버전(사내 서버용)
 
-로컬판(`serve.py`, launchd)과 따로 도는 브라우저용 판이다. 사내 공용 서버에 올려 팀원이 설치 없이 쓴다. 로그인은 없다. 1단계 탭은 WBS·Jira(wbs)와 구현 진행 현황(plans)이다.
+로컬판(`serve.py`, launchd)과 따로 도는 브라우저용 판이다. 사내 공용 서버에 올려 팀원이 설치 없이 쓴다. 로그인은 없다. 1단계 탭은 WBS·Jira(wbs)와 구현 진행 현황(plans)이고, 2단계에서 주간 보고(weekly, 실험실)를 더했다.
 
 - **파일은 서버로 가지 않는다.** 브라우저가 File System Access API 로 고른 폴더·파일을 직접 읽는다. 서버(`web_serve.py`)는 정적 화면(`web/`)과 `/api/<이름>` 프록시만 준다.
 - **Chrome·Edge 전용.** Firefox·Safari 는 폴더 선택을 지원하지 않아 첫 화면에 안내만 뜬다.
@@ -182,6 +182,7 @@ cd ~/workspace/dobbys-dashboard && python3 serve.py
 - 폴더 권한은 브라우저가 방문 때마다 다시 물을 수 있다. 그러면 위에 뜨는 **폴더 다시 연결**을 누른다.
 - **WBS·Jira 탭**: WBS 엑셀(.xlsx)은 브라우저가 직접 읽고 서버로 보내지 않는다. 권한이 풀리면 탭 위 **WBS 엑셀 다시 연결**을 누른다. 수동 연결·보드 칸 지정·일정 초안은 IndexedDB 에 남는다. Jira 로그인(이메일·API token)은 탭 안에서 하고 브라우저에만 둔다(기본은 창을 닫으면 사라지고, **이 브라우저에 기억**을 켜면 localStorage).
 - **Jira 프록시(`/api/jira`)**: Atlassian 이 API token 방식의 브라우저 직접 호출(CORS)을 받지 않아 서버가 전달만 한다. `https://<사이트><JIRA_HOST_SUFFIX>` 의 `GET /rest/api/3/myself`·`/rest/api/3/search/jql`·`/rest/api/3/issue/<KEY>/worklog` 만, 경로마다 정해진 쿼리와 로컬판이 만드는 JQL 모양만 통과한다. `Authorization` 은 받은 그대로 한 번 넘기고 저장·로그하지 않으며 오류 응답에도 싣지 않는다. 리다이렉트를 따라가지 않고 30초 안에 답이 없으면 504 다.
+- **주간 보고 탭**(실험실): ⚙ 설정의 **폴더 추가**로 고른 초안 폴더 여러 개를 브라우저가 직접 읽어 로컬판과 같은 뷰어(회차 목록·AI 브리핑·초안 원문)를 화면에서 만든다. 뷰어 HTML·`sources.json` 을 쓰지 않고 서버 재생성도 없다. ↻ 최신화는 폴더를 다시 읽는다. **초안 확인 완료** 표시는 IndexedDB(탭 상태 `reviewed`, 로컬판 `reviewed.json` 과 같은 `{회차: 시각}` 모양)에 남는다. 폴더 경로를 모르므로 같은 주 초안 고르기·같은 날짜 회차 순서는 (폴더 이름, 파일 이름) 순을 쓴다(같은 상위 폴더 아래 폴더면 로컬판과 같다).
 - 경로 칸에는 고른 폴더·파일 이름만 보인다(브라우저는 절대 경로를 모른다). 계획 이름 옆 **경로 복사**를 쓰려면 ⚙ 설정의 '실제 경로(경로 복사용, 선택)' 칸에 이 PC 에서의 폴더 경로를 적는다. PC·브라우저마다 다시 적는다.
 - ⬆ 업데이트·Finder 선택 창·키체인은 없다. 사이드바 아래 버전 줄은 서버 체크아웃의 커밋(`api/version`, 환경변수 `DOBBYS_COMMIT`·`DOBBYS_COMMIT_DATE` 가 있으면 그 값)이다. 서버 갱신은 운영자가 pull 뒤 재시작한다.
 
@@ -206,7 +207,7 @@ HOST=127.0.0.1 PORT=8788 ALLOWED_ORIGINS=https://dash.example.com python3 web_se
 
 서버가 하는 검사: `web/` 밖 경로·숨김 파일 거절(웹이 함께 쓰는 로컬판 파일은 `web_serve.py` 의 `SHARED_FILES` 목록만), 모든 응답에 `Content-Security-Policy`(스크립트는 같은 출처만)·`X-Content-Type-Options: nosniff`·`Referrer-Policy: no-referrer`, `/api/*` 는 `X-Dobbys-Proxy: 1` 헤더 필수·본문 64 KiB 까지. 로그에는 메서드·경로·상태만 남고 쿼리·헤더는 남지 않는다.
 
-웹 쪽 코드: `web_serve.py`, `api/`(프록시, `api/<이름>.py` 의 `handle(Request) -> Response`), `web/`(셸 `web/shell/`, 브라우저 모듈 `web/lib/`, 탭 목록 `web/tabs/manifest.js`, 탭 화면 `web/tabs/<id>/`). 테스트는 `tests/test_web_serve.py`, `tests/test_web_jira_proxy.py`, `tests/js/web/`, `tests/js/wbs_web/`(같은 예제 엑셀·Jira 응답으로 로컬판과 결과 비교).
+웹 쪽 코드: `web_serve.py`, `api/`(프록시, `api/<이름>.py` 의 `handle(Request) -> Response`), `web/`(셸 `web/shell/`, 브라우저 모듈 `web/lib/`, 탭 목록 `web/tabs/manifest.js`, 탭 화면 `web/tabs/<id>/`). 주간 보고 화면은 `web/tabs/weekly/`(로컬판 `report_parser.py`·`markdown_renderer.py`·`generate_viewer.py` 를 옮긴 `report_parser.js`·`markdown_renderer.js`·`viewer_html.js`, 화면 `weekly.js`, 로컬판 CSS 를 그대로 옮긴 `weekly.css`). 테스트는 `tests/test_web_serve.py`, `tests/test_web_jira_proxy.py`, `tests/js/web/`(`weekly_*.test.js` 는 같은 초안 폴더 여러 개로 로컬판과 결과 비교), `tests/js/wbs_web/`(같은 예제 엑셀·Jira 응답으로 로컬판과 결과 비교).
 
 ## 보안
 

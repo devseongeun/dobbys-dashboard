@@ -1,4 +1,5 @@
-// 의사결정 문서 뷰어(웹). 설정의 폴더 핸들에서 문서를 읽어 화면 안 sandbox iframe 에 띄운다. 규칙은 doc_frame.js.
+// 의사결정 문서 뷰어(웹). 설정의 폴더 핸들에서 문서를 읽어 정제한 글을 화면 안 sandbox iframe 의 srcdoc 으로 띄운다.
+// 규칙은 doc_frame.js. 문서용 blob: 주소는 만들지 않는다(새 탭으로 열릴 주소가 없다).
 // - 같은 폴더 그림(<img src="그림.svg">)은 data: 주소로 바꿔 넣는다(로컬판은 서버가 같은 폴더 파일을 줬다).
 // - 문서 안 링크는 모두 부모가 처리한다(doc_frame.js handleLink): #앵커는 스크롤, 바깥 링크는 새 탭(noopener),
 //   같은 폴더 문서는 이 뷰어, 같은 폴더 pdf·그림은 내려받기, 그 밖(하위 폴더·javascript: 등)은 막고 위에 알린다.
@@ -6,11 +7,11 @@
 import { tabContext } from "../../lib/tab.js";
 import * as fsa from "../../lib/fsa.js";
 import { FROM_LIST, displayName } from "./assets_index.js";
-import { blockedNotice, docName, handleLink, imageName, imageType, isExternalUrl } from "./doc_frame.js";
+import { SANDBOX, blockedNotice, cleanDoc, docName, handleLink, imageType } from "./doc_frame.js";
 
 const $ = (id) => document.getElementById(id);
 let frame = $("doc");
-let urls = [];
+let urls = [];  // 내려받기용 blob: 주소(형식 application/octet-stream, HTML 로 렌더되지 않는다)
 
 class Missing extends Error {}
 
@@ -65,28 +66,14 @@ async function dataUrl(folder, name) {
   }
 }
 
-// 문서 HTML 을 실행·로드 없이 파싱해(DOMParser) 고친 뒤 다시 글로 만든다.
-// <base> 와 모든 target 속성을 지운다(새 창·다른 창으로 가는 길을 남기지 않는다). 같은 폴더 그림은 data: 로 바꿔 넣는다.
-// 막히는 것(스크립트·on* 속성·바깥 그림·바깥 스타일시트와 글꼴)의 수를 함께 돌려준다.
+// 문서 HTML 을 실행·로드 없이 파싱해(DOMParser) 정제(doc_frame.js cleanDoc)한 뒤 다시 글로 만든다.
+// 같은 폴더 그림은 data: 로 바꿔 넣는다. 막히는 것(스크립트·on* 속성·바깥 그림·바깥 스타일시트와 글꼴)의 수를 함께 돌려준다.
 async function prepare(folder, text) {
   const doc = new DOMParser().parseFromString(text, "text/html");
-  doc.querySelectorAll("base").forEach((el) => el.remove());
-  doc.querySelectorAll("[target]").forEach((el) => el.removeAttribute("target"));
-  let images = 0;
-  for (const img of doc.querySelectorAll("img[src]")) {
-    const src = img.getAttribute("src");
-    const name = imageName(src);
-    if (name) img.setAttribute("src", (await dataUrl(folder, name)) ?? "");
-    else if (isExternalUrl(src)) images += 1;
-  }
-  const styleText = [...doc.querySelectorAll("style")].map((el) => el.textContent).join("\n");
-  const styles = [...doc.querySelectorAll("link[href]")]
-    .filter((el) => /(^|\s)stylesheet(\s|$)/i.test(el.getAttribute("rel") ?? "") && isExternalUrl(el.getAttribute("href"))).length
-    + (styleText.match(/(?:@import\s+(?:url\()?|url\()\s*["']?(?:https?:)?\/\//gi) ?? []).length;
-  const scripts = doc.querySelectorAll("script").length;
-  const handlers = [...doc.querySelectorAll("*")].filter((el) => [...el.attributes].some((attr) => /^on/i.test(attr.name))).length;
+  const { counts, images } = cleanDoc(doc);
+  for (const { el, name } of images) el.setAttribute("src", (await dataUrl(folder, name)) ?? "");
   const html = (doc.doctype ? "<!doctype html>\n" : "") + doc.documentElement.outerHTML;
-  return { html, counts: { scripts, handlers, images, styles } };
+  return { html, counts };
 }
 
 // 같은 폴더 파일(pdf·그림)을 내려받는다. 새 탭에서 열리지 않게 부모가 download 링크를 만들어 누른다.
@@ -101,26 +88,35 @@ async function downloadFile(file) {
   }
 }
 
-// 문서 안 링크의 click·auxclick(가운데 클릭)을 모두 부모가 받는다(doc_frame.js handleLink).
-// 문서를 다 읽었으면 문서 blob: 주소를 거둔다. iframe 안 문서는 그대로 남고, 같은 주소로 다른 곳에서 다시 열 수 없다.
-function attach(docUrl) {
-  URL.revokeObjectURL(docUrl);
-  urls = urls.filter((url) => url !== docUrl);
+// 문서의 DOM clobbering(<form name="addEventListener"> 등)에 흔들리지 않게 부모 쪽 원형 메서드로 부른다.
+const call = (Type, method, self, ...args) => Type.prototype[method].call(self, ...args);
+
+// 문서 안 링크의 click·auxclick(가운데 클릭)·Enter 를 모두 부모가 받는다(doc_frame.js handleLink).
+// 문서 안에는 실제 href 가 없어(cleanDoc) 이 처리기가 붙기 전(load 전)에는 링크를 눌러도 아무 데도 가지 않는다.
+function attach(target) {
+  if (target !== frame) return;  // 그사이 다른 문서로 바뀌었다
   let inner;
   try {
-    inner = frame.contentDocument;
+    inner = target.contentDocument;
   } catch {
     return;
   }
+  if (!inner) return;
+  const linkDone = () => note("", "linknote");
   const actions = {
-    scrollTo: (id) => (id ? inner.getElementById(id) ?? inner.getElementsByName(id)[0] : null)?.scrollIntoView({ block: "start" }),
-    openExternal: (href) => window.open(new URL(href, location.href).href, "_blank", "noopener,noreferrer"),
+    scrollTo: (id) => {
+      linkDone();
+      const el = id ? call(Document, "getElementById", inner, id) ?? call(Document, "getElementsByName", inner, id)[0] : null;
+      if (el) call(Element, "scrollIntoView", el, { block: "start" });
+      else if (id === "" || id.toLowerCase() === "top") target.contentWindow?.scrollTo(0, 0);  // href="#"·"#top" 은 맨 위로
+    },
+    openExternal: (href) => { linkDone(); window.open(new URL(href, location.href).href, "_blank", "noopener,noreferrer"); },
     // 문서→문서 이동은 기록을 남기지 않아 '← 목록'(뒤로 가기)이 목록으로 돌아간다.
-    openDoc: (file) => location.replace("#" + encodeURIComponent(file)),
-    openFile: (file) => downloadFile(file),
+    openDoc: (file) => { linkDone(); location.replace("#" + encodeURIComponent(file)); },
+    openFile: (file) => { linkDone(); downloadFile(file); },
     note: (text) => note(text, "linknote"),
   };
-  for (const type of ["click", "auxclick"]) inner?.addEventListener(type, (event) => handleLink(event, actions), true);
+  for (const type of ["click", "auxclick", "keydown"]) call(EventTarget, "addEventListener", inner, type, (event) => handleLink(event, actions), true);
 }
 
 function reconnect(folder) {
@@ -161,13 +157,14 @@ async function load() {
     note(notice);
     download.hidden = !notice;
     $("msg").hidden = true;
-    // iframe 의 src 를 바꾸면 탭 기록에 iframe 항목이 쌓여 '← 목록'(뒤로 가기)이 앞 문서(거둔 blob)로 간다.
-    // 문서마다 sandbox 속성째 새 iframe 으로 갈아 끼워 기록을 남기지 않는다.
-    const docUrl = blobUrl([html], "text/html;charset=utf-8");
+    // 문서마다 새 iframe 으로 갈아 끼운다(같은 iframe 의 문서를 바꾸면 탭 기록이 쌓여 '← 목록'이 앞 문서로 간다).
+    // sandbox 를 srcdoc 보다 먼저 붙이고, src 는 쓰지 않는다(문서 주소 about:srcdoc).
     const fresh = frame.cloneNode(false);
+    fresh.setAttribute("sandbox", SANDBOX);
+    fresh.removeAttribute("src");
     fresh.hidden = false;
-    fresh.onload = () => attach(docUrl);
-    fresh.src = docUrl;
+    fresh.onload = () => attach(fresh);
+    fresh.srcdoc = html;
     frame.replaceWith(fresh);
     frame = fresh;
   } catch (err) {

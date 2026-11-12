@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>문서 보기</title>
 <!-- 의사결정 문서 뷰어(웹 버전). 로컬판은 assets_serve.py 가 폴더의 HTML 을 그대로 줬지만, 웹은 서버가 파일을 받지 않으므로
-     설정의 폴더 핸들에서 읽어 blob: URL 로 아래 iframe 에 띄운다(view.js). sandbox 규칙은 doc_frame.js SANDBOX 와 같아야 한다. -->
+     설정의 폴더 핸들에서 읽어 정제한 글을 아래 iframe 의 srcdoc 으로 띄운다(view.js, blob: 주소는 쓰지 않는다).
+     sandbox 규칙은 doc_frame.js SANDBOX 와 같아야 한다. -->
 <style>
 :root{--bg:#12141a;--line:#2a2f3a;--ink:#e7e9ee;--muted:#8b93a7;--dim:#646c80;--acc:#5eead4;--warn:#fcd34d}
 *{box-sizing:border-box}

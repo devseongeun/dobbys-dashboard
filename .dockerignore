@@ -12,4 +12,5 @@
 !tabs/plans/templates/
 !deploy/nginx.conf.template
 !deploy/10-self-signed-cert.sh
+!deploy/app-start.sh
 **/__pycache__

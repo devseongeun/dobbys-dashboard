@@ -25,10 +25,12 @@ COPY web ./web
 COPY shell/route.js shell/order.js shell/onboarding_flow.js shell/shell.css ./shell/
 COPY tabs/_common/vendor/marked.umd.js ./tabs/_common/vendor/
 COPY tabs/plans/templates ./tabs/plans/templates
+# CERT_HOST(쉼표 구분 주소 목록)·HTTPS_PORT 로 ALLOWED_ORIGINS 를 만들고 web_serve.py 를 띄운다.
+COPY deploy/app-start.sh ./app-start.sh
 RUN adduser -D -H -u 10001 dobbys
 USER dobbys
 EXPOSE 8788
-CMD ["python3", "web_serve.py"]
+CMD ["sh", "app-start.sh"]
 
 FROM ${NGINX_IMAGE} AS proxy
 RUN apk add --no-cache openssl

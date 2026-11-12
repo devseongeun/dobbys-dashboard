@@ -349,6 +349,20 @@ describe("문서 정제(cleanDoc)", () => {
     expect(leftovers(doc)).toEqual([]);
   });
 
+  test("SVG 애니메이션(set·animate 류·discard)은 지운다: 정제 뒤에 링크의 href 를 다시 만들 수 있다", () => {
+    const doc = fakeDoc([], [fakeEl("svg", {}, [
+      fakeEl("a", {}, [
+        fakeEl("set", { attributeName: "href", to: "https://example.org/smil" }),
+        fakeEl("animate", { attributeName: "href", values: "https://example.org/a" }),
+        fakeEl("text", {}, [], { text: "SMIL" }),
+      ]),
+      fakeEl("animateMotion", {}), fakeEl("animateTransform", {}), fakeEl("discard", {}),
+    ])]);
+    cleanDoc(doc);
+    expect(everything(doc).map((el) => el.localName)).toEqual(["html", "head", "body", "svg", "a", "text"]);
+    expect(leftovers(fakeDoc([], [fakeEl("svg", {}, [fakeEl("set", { attributeName: "href" })])]))).toEqual(["<set>"]);
+  });
+
   test("문서의 DOM clobbering(form 의 removeAttribute·attributes·getAttributeNames 를 가린 이름)에 흔들리지 않는다", () => {
     const form = fakeEl("form", { onsubmit: "x()", target: "_blank" }, [fakeEl("input", { name: "removeAttribute" }), fakeEl("input", { name: "attributes" })]);
     // 실제 DOM 에서 form 의 이름 속성은 인스턴스에서 메서드를 가린다. 가짜에서도 인스턴스에 같은 이름을 둔다.

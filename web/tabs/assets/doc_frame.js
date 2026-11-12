@@ -176,8 +176,12 @@ function* elements(root) {
 }
 
 const STYLE_URL = /(?:@import\s+(?:url\()?|url\()\s*["']?(?:https?:)?\/\//gi;
-// 통째로 지우는 요소: 실행(script), 주소 기준(base), 다른 문서를 품는 것(iframe·frame·object·embed 등, 안쪽은 정제도 처리기도 닿지 않는다).
-const DROP = new Set(["base", "script", "iframe", "frame", "frameset", "object", "embed", "portal", "fencedframe"]);
+// 통째로 지우는 요소: 실행(script), 주소 기준(base), 다른 문서를 품는 것(iframe·frame·object·embed 등, 안쪽은 정제도 처리기도 닿지 않는다),
+// SVG 애니메이션(SMIL, <set attributeName="href" to="…"> 처럼 정제 뒤에 속성을 바꿔 링크에 href 를 다시 만든다).
+const DROP = new Set([
+  "base", "script", "iframe", "frame", "frameset", "object", "embed", "portal", "fencedframe",
+  "set", "animate", "animatemotion", "animatetransform", "animatecolor", "discard",
+]);
 // 모든 요소에서 지우는 속성.
 const DROP_ATTRS = new Set(["target", "formtarget", "srcdoc"]);
 const isRefresh = (el) => tagOf(el) === "meta" && /^\s*refresh\s*$/i.test(attr(el, "http-equiv") ?? "");

@@ -11,9 +11,11 @@
 //    IndexedDB·localStorage(비밀값)를 읽을 길이 없다. allow-scripts 와 함께 주면 문서가 sandbox 를 스스로 풀 수 있고,
 //    allow-popups(-to-escape-sandbox) 를 주면 target 달린 링크 하나로 문서가 sandbox 없는 같은 출처 탭으로 열린다.
 //    그래서 둘 다 주지 않는다(tests/js/web/assets_view.test.js 가 막는다).
-// 3. 정제(cleanDoc): <base>·<script>·meta refresh·target·on* 를 지우고, 링크(a·area·SVG a)의 href·xlink:href 를
-//    LINK_ATTR 로 옮긴다. 문서 안에 실제 href 가 없으니 링크 처리기가 붙기 전(load 전)에도 Cmd+클릭·끌기로 열 주소가 없다.
-//    <template>(선언적 shadow DOM) 안도 같이 고친다.
+// 3. 정제(sanitize·cleanDoc): <base>·<script>·iframe·frame·object·embed·meta refresh·target·srcdoc·on* 를 지우고,
+//    링크(a·area·SVG a)의 href·xlink:href 를 LINK_ATTR 로 옮긴다. 문서 안에 실제 href 가 없으니 링크 처리기가 붙기 전
+//    (load 전)에도 Cmd+클릭·끌기로 열 주소가 없다. <template>(선언적 shadow DOM) 안도 같이 고친다. 파싱·직렬화 왕복으로
+//    되살아나는 요소(mXSS)를 막으려고 결과가 바뀌지 않을 때까지 되풀이하고, 띄울 글을 다시 파싱해 남은 것이 있으면
+//    띄우지 않는다(leftovers). 문서 DOM 은 원형 메서드로만 다뤄 DOM clobbering 에 흔들리지 않는다.
 // 4. 부모 가로채기: 문서 안 링크의 click·auxclick·Enter 는 모두 부모가 받아 처리한다(handleLink, composedPath 로 shadow DOM 안도).
 //    바깥 링크는 부모가 window.open(noopener) 으로 연다.
 export const SANDBOX = "allow-same-origin";
@@ -33,8 +35,8 @@ export const LINK_ATTR = "data-dashboard-href";
 // 그림·글꼴·미디어는 data: 만, 스타일은 문서 안 것만 쓴다. 상대 주소가 about:srcdoc 이 아닌 부모(view.html) 기준으로 풀려도
 // 서버에 요청이 가지 않는다.
 export const DOC_CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; media-src data:";
-// href 를 옮긴 링크가 링크처럼 보이게(문서 CSS 가 이기도록 :where 로 우선순위 0).
-export const LINK_STYLE = `:where(a,area)[${LINK_ATTR}]{cursor:pointer}:where(a)[${LINK_ATTR}]{color:LinkText;text-decoration:underline}`;
+// href 를 옮긴 링크가 링크처럼 보이게. 선택자를 통째로 :where 로 감싸 특이도 0 이라 문서의 a{color} 같은 규칙이 늘 이긴다.
+export const LINK_STYLE = `:where(a[${LINK_ATTR}],area[${LINK_ATTR}]){cursor:pointer}:where(a[${LINK_ATTR}]){color:LinkText;text-decoration:underline}`;
 
 // 뷰어가 여는 문서 이름. 로컬판 assets_serve.py _resolve 와 같다: 폴더 바로 아래, 숨김(.)·경로 구분자 없음, .html.
 export const docName = (name) => Boolean(name) && !name.startsWith(".") && !name.includes("/") && !name.includes("\\") && name.endsWith(".html");
@@ -140,75 +142,145 @@ export function handleLink(event, actions) {
   return kind.kind;
 }
 
+// DOM 을 원형 체인에서 꺼낸 메서드·getter 로만 다룬다. 문서의 <form name="removeAttribute">·<input name="attributes"> 나
+// <form name="createElement"> 같은 DOM clobbering 은 인스턴스(form·document)의 이름 속성만 가리고 원형은 건드리지 못한다.
+function protoLookup(obj, name) {
+  for (let proto = Object.getPrototypeOf(obj); proto; proto = Object.getPrototypeOf(proto)) {
+    const desc = Object.getOwnPropertyDescriptor(proto, name);
+    if (desc) return desc;
+  }
+  return null;
+}
+export function safeGet(obj, name) {
+  const desc = protoLookup(obj, name);
+  if (!desc) return undefined;
+  return desc.get ? desc.get.call(obj) : desc.value;
+}
+export function safeCall(obj, name, ...args) {
+  const desc = protoLookup(obj, name);
+  if (typeof desc?.value !== "function") throw new TypeError(`${name} 이 없다`);
+  return desc.value.apply(obj, args);
+}
+const tagOf = (el) => String(safeGet(el, "localName") ?? "").toLowerCase();
+const attr = (el, name) => safeCall(el, "getAttribute", name);
+
 // root 아래 모든 요소. <template> 의 내용(선언적 shadow DOM 이 될 것)도 들어간다. querySelectorAll 은 그 안을 보지 않는다.
 function* elements(root) {
-  for (const el of root.querySelectorAll("*")) {
+  for (const el of safeCall(root, "querySelectorAll", "*")) {
     yield el;
-    if (String(el.localName).toLowerCase() === "template" && el.content) yield* elements(el.content);
+    if (tagOf(el) === "template") {
+      const content = safeGet(el, "content");
+      if (content) yield* elements(content);
+    }
   }
 }
 
 const STYLE_URL = /(?:@import\s+(?:url\()?|url\()\s*["']?(?:https?:)?\/\//gi;
+// 통째로 지우는 요소: 실행(script), 주소 기준(base), 다른 문서를 품는 것(iframe·frame·object·embed 등, 안쪽은 정제도 처리기도 닿지 않는다).
+const DROP = new Set(["base", "script", "iframe", "frame", "frameset", "object", "embed", "portal", "fencedframe"]);
+// 모든 요소에서 지우는 속성.
+const DROP_ATTRS = new Set(["target", "formtarget", "srcdoc"]);
+const isRefresh = (el) => tagOf(el) === "meta" && /^\s*refresh\s*$/i.test(attr(el, "http-equiv") ?? "");
 
-// DOMParser 로 실행·로드 없이 파싱한 문서 doc 을 띄울 수 있게 고친다(그 자리에서 바꾼다).
-// - <base>·<script>·<meta http-equiv=refresh> 를 지우고, 모든 target·formtarget·on* 속성을 지운다.
+// DOMParser 로 실행·로드 없이 파싱한 문서 doc 을 띄울 수 있게 고친다(그 자리에서 바꾼다). 넣는 것은 없고 지우고 옮기기만 한다.
+// - DROP 요소와 <meta http-equiv=refresh> 를 지우고, 모든 target·formtarget·srcdoc·on* 속성을 지운다.
 // - a·area·SVG a 의 href·xlink:href 를 LINK_ATTR 로 옮기고(실제 href 는 남기지 않는다) 키보드로 닿게 tabindex 를 준다.
 // - 선언적 shadow DOM 은 open 으로 바꿔 부모 처리기가 composedPath 로 그 안 링크를 볼 수 있게 한다.
-// - head 맨 앞에 DOC_CSP 와 LINK_STYLE 을 넣는다(LINK_STYLE 은 shadow DOM 이 될 template 안에도).
 // 돌려주는 것: counts(막히는 스크립트·이벤트 속성·바깥 그림·바깥 스타일시트와 글꼴 수), images(같은 폴더 그림 [{el, name}],
 // view.js 가 data: 로 바꿔 넣는다).
 export function cleanDoc(doc) {
   const counts = { scripts: 0, handlers: 0, images: 0, styles: 0 };
   const images = [];
-  const shadows = [];
   for (const el of [...elements(doc)]) {
-    const tag = String(el.localName).toLowerCase();
-    if (tag === "base") { el.remove(); continue; }
-    if (tag === "script") { counts.scripts += 1; el.remove(); continue; }
-    if (tag === "meta" && /^\s*refresh\s*$/i.test(el.getAttribute("http-equiv") ?? "")) { el.remove(); continue; }
-    el.removeAttribute("target");
-    el.removeAttribute("formtarget");
-    const handlers = [...el.attributes].map((attr) => attr.name).filter((name) => /^on/i.test(name));
-    if (handlers.length) {
-      counts.handlers += 1;
-      handlers.forEach((name) => el.removeAttribute(name));
+    const tag = tagOf(el);
+    if (DROP.has(tag) || isRefresh(el)) {
+      if (tag === "script") counts.scripts += 1;
+      safeCall(el, "remove");
+      continue;
     }
-    if (tag === "template" && el.hasAttribute("shadowrootmode")) {
-      el.setAttribute("shadowrootmode", "open");
-      shadows.push(el.content);
-    }
+    const names = safeCall(el, "getAttributeNames");
+    const handlers = names.filter((name) => /^on/i.test(name));
+    if (handlers.length) counts.handlers += 1;
+    for (const name of names) if (DROP_ATTRS.has(name.toLowerCase()) || /^on/i.test(name)) safeCall(el, "removeAttribute", name);
+    if (tag === "template" && safeCall(el, "hasAttribute", "shadowrootmode")) safeCall(el, "setAttribute", "shadowrootmode", "open");
     if (tag === "a" || tag === "area") {
-      const href = el.getAttribute("href") ?? el.getAttributeNS(XLINK, "href");
-      el.removeAttribute("href");
-      el.removeAttributeNS(XLINK, "href");
+      const href = attr(el, "href") ?? safeCall(el, "getAttributeNS", XLINK, "href");
+      safeCall(el, "removeAttribute", "href");
+      safeCall(el, "removeAttributeNS", XLINK, "href");
       if (href !== null) {
-        el.setAttribute(LINK_ATTR, href);
-        if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "0");
+        safeCall(el, "setAttribute", LINK_ATTR, href);
+        if (!safeCall(el, "hasAttribute", "tabindex")) safeCall(el, "setAttribute", "tabindex", "0");
       }
     }
-    if (tag === "img" && el.hasAttribute("src")) {
-      const src = el.getAttribute("src");
+    if (tag === "img" && safeCall(el, "hasAttribute", "src")) {
+      const src = attr(el, "src");
       const name = imageName(src);
       if (name) images.push({ el, name });
       else if (isExternalUrl(src)) counts.images += 1;
     }
-    if (tag === "link" && /(^|\s)stylesheet(\s|$)/i.test(el.getAttribute("rel") ?? "") && isExternalUrl(el.getAttribute("href"))) counts.styles += 1;
-    if (tag === "style") counts.styles += (String(el.textContent).match(STYLE_URL) ?? []).length;
+    if (tag === "link" && /(^|\s)stylesheet(\s|$)/i.test(attr(el, "rel") ?? "") && isExternalUrl(attr(el, "href"))) counts.styles += 1;
+    if (tag === "style") counts.styles += (String(safeGet(el, "textContent")).match(STYLE_URL) ?? []).length;
   }
-  const meta = doc.createElement("meta");
-  meta.setAttribute("http-equiv", "Content-Security-Policy");
-  meta.setAttribute("content", DOC_CSP);
-  const linkStyle = () => Object.assign(doc.createElement("style"), { textContent: LINK_STYLE });
-  doc.head.prepend(meta, linkStyle());
-  shadows.forEach((content) => content.prepend(linkStyle()));  // 문서 style 은 shadow 안에 닿지 않는다
   return { counts, images };
+}
+
+// 정제한 문서에 띄울 때만 쓰는 것을 넣는다: head 맨 앞에 DOC_CSP 와 LINK_STYLE, shadow DOM 이 될 template 안에도 LINK_STYLE.
+export function decorate(doc) {
+  const make = (tag) => safeCall(doc, "createElement", tag);
+  const meta = make("meta");
+  safeCall(meta, "setAttribute", "http-equiv", "Content-Security-Policy");
+  safeCall(meta, "setAttribute", "content", DOC_CSP);
+  const linkStyle = () => Object.assign(make("style"), { textContent: LINK_STYLE });
+  safeCall(safeGet(doc, "head"), "prepend", meta, linkStyle());
+  for (const el of [...elements(doc)]) {
+    if (tagOf(el) === "template" && safeCall(el, "hasAttribute", "shadowrootmode")) safeCall(safeGet(el, "content"), "prepend", linkStyle());
+  }
+}
+
+// 문서 → 글. doctype 은 있으면 표준 모드 표시만 남긴다.
+export const serialize = (doc) => (safeGet(doc, "doctype") ? "<!doctype html>\n" : "") + safeGet(safeGet(doc, "documentElement"), "outerHTML");
+
+// 파싱 → 정제 → 직렬화를 결과 글이 바뀌지 않을 때까지(고정점) 되풀이한다. 파싱 → 직렬화 → 파싱이 같은 트리를 주지 않는 문서
+// (mXSS: 중첩 form·MathML <style> 등)는 첫 정제 때 글자이던 것이 다시 파싱하면 진짜 요소(<a href>·<meta refresh>)가 된다.
+// 그래서 적어도 한 번은 다시 파싱해 정제하고, 두 번 연속 같은 글이 나와야 끝낸다. passes 안에 닿지 못하면 null(띄우지 않는다).
+// parse(text) 는 DOMParser 문서를 준다. 돌려주는 것: {doc(마지막으로 정제한 문서), counts, images} 또는 null.
+export function sanitize(text, parse, passes = 4) {
+  let prev = null;
+  let scripts = 0;
+  let handlers = 0;
+  for (let pass = 0; pass < passes; pass += 1) {
+    const doc = parse(pass === 0 ? String(text) : prev);
+    const { counts, images } = cleanDoc(doc);
+    scripts += counts.scripts;
+    handlers += counts.handlers;
+    const out = serialize(doc);
+    if (out === prev) return { doc, images, counts: { ...counts, scripts, handlers } };
+    prev = out;
+  }
+  return null;
+}
+
+// 띄울 글을 다시 파싱한 문서에 남으면 안 되는 것. 빈 배열이면 띄워도 된다(view.js 가 마지막에 확인한다).
+// 링크(a·area)의 href·xlink:href, 다른 문서를 품는 요소, srcdoc·target·formtarget·on* 속성, script·base·meta refresh.
+export function leftovers(doc) {
+  const found = [];
+  for (const el of elements(doc)) {
+    const tag = tagOf(el);
+    if (DROP.has(tag) || isRefresh(el)) found.push(`<${tag}>`);
+    if ((tag === "a" || tag === "area") && (attr(el, "href") !== null || safeCall(el, "getAttributeNS", XLINK, "href") !== null)) found.push(`<${tag} href>`);
+    for (const name of safeCall(el, "getAttributeNames")) {
+      if (DROP_ATTRS.has(name.toLowerCase()) || /^on/i.test(name)) found.push(`<${tag} ${name}>`);
+    }
+  }
+  return found;
 }
 
 // 화면 위 안내 문구. 아무것도 막히지 않았으면 "".
 export function blockedNotice({ scripts = 0, handlers = 0, images = 0, styles = 0 }) {
   const parts = [];
   if (scripts || handlers) {
-    parts.push(`이 문서의 스크립트 ${scripts}개${handlers ? `·이벤트 속성 ${handlers}곳은` : "는"} 웹 화면에서 실행하지 않는다(보안). `
+    const what = [scripts ? `스크립트 ${scripts}개` : "", handlers ? `이벤트 속성 ${handlers}곳` : ""].filter(Boolean).join("·");
+    parts.push(`이 문서의 ${what}${handlers ? "은" : "는"} 웹 화면에서 실행하지 않는다(보안). `
       + "스크립트로 그리는 그림·차트·버튼은 비거나 움직이지 않는다.");
   }
   if (images || styles) {

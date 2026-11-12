@@ -7,7 +7,7 @@
 import { tabContext } from "../../lib/tab.js";
 import * as fsa from "../../lib/fsa.js";
 import { FROM_LIST, displayName } from "./assets_index.js";
-import { SANDBOX, blockedNotice, cleanDoc, docName, handleLink, imageType } from "./doc_frame.js";
+import { SANDBOX, blockedNotice, decorate, docName, handleLink, imageType, leftovers, safeCall, sanitize, serialize } from "./doc_frame.js";
 
 const $ = (id) => document.getElementById(id);
 let frame = $("doc");
@@ -66,13 +66,21 @@ async function dataUrl(folder, name) {
   }
 }
 
-// 문서 HTML 을 실행·로드 없이 파싱해(DOMParser) 정제(doc_frame.js cleanDoc)한 뒤 다시 글로 만든다.
-// 같은 폴더 그림은 data: 로 바꿔 넣는다. 막히는 것(스크립트·on* 속성·바깥 그림·바깥 스타일시트와 글꼴)의 수를 함께 돌려준다.
+class Unsafe extends Error {}
+const parse = (text) => new DOMParser().parseFromString(text, "text/html");
+
+// 문서 HTML 을 실행·로드 없이 파싱해(DOMParser) 정제(doc_frame.js sanitize, 결과가 바뀌지 않을 때까지)한 뒤 다시 글로 만든다.
+// 같은 폴더 그림은 data: 로 바꿔 넣고 문서 CSP·링크 모양을 넣는다(decorate). 마지막 글을 한 번 더 파싱해 href·iframe 류·on* 등이
+// 남았으면(leftovers) 띄우지 않는다. 막히는 것(스크립트·on* 속성·바깥 그림·바깥 스타일시트와 글꼴)의 수를 함께 돌려준다.
 async function prepare(folder, text) {
-  const doc = new DOMParser().parseFromString(text, "text/html");
-  const { counts, images } = cleanDoc(doc);
-  for (const { el, name } of images) el.setAttribute("src", (await dataUrl(folder, name)) ?? "");
-  const html = (doc.doctype ? "<!doctype html>\n" : "") + doc.documentElement.outerHTML;
+  const result = sanitize(text, parse);
+  if (!result) throw new Unsafe("정제를 되풀이해도 결과가 정해지지 않았다");
+  const { doc, counts, images } = result;
+  for (const { el, name } of images) safeCall(el, "setAttribute", "src", (await dataUrl(folder, name)) ?? "");
+  decorate(doc);
+  const html = serialize(doc);
+  const left = leftovers(parse(html));
+  if (left.length) throw new Unsafe(`정제 뒤에도 남은 것이 있다: ${[...new Set(left)].slice(0, 5).join(" ")}`);
   return { html, counts };
 }
 
@@ -148,11 +156,20 @@ async function load() {
     const { folder, file } = await open(name);
     if (file === null) { message("브라우저가 폴더 접근 권한을 다시 묻는다.", reconnect(folder)); return; }
     const bytes = await file.arrayBuffer();
-    const { html, counts } = await prepare(folder, new TextDecoder("utf-8").decode(bytes));
     const download = $("download");
     // 원본 바이트 그대로. HTML 로 열리지 않게(같은 출처 탭에서 렌더되지 않게) 형식은 octet-stream 이다.
     download.href = blobUrl([bytes], "application/octet-stream");
     download.download = name;
+    let prepared;
+    try {
+      prepared = await prepare(folder, new TextDecoder("utf-8").decode(bytes));
+    } catch (error) {
+      if (!(error instanceof Unsafe)) throw error;
+      message(`이 문서는 웹 화면에 안전하게 띄울 수 없어 열지 않았다(${error.message}). 원본을 내려받아 열거나, ← 목록의 경로 복사로 Vault 에서 연다.`);
+      download.hidden = false;
+      return;
+    }
+    const { html, counts } = prepared;
     const notice = blockedNotice(counts);
     note(notice);
     download.hidden = !notice;

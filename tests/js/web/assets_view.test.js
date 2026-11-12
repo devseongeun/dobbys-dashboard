@@ -4,8 +4,8 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  DOC_CSP, LINK_ATTR, SANDBOX, blockedNotice, cleanDoc, docName, findLink, findLinkInPath, handleLink, imageName, isExternalUrl, linkKind,
-  sameFolderName,
+  DOC_CSP, LINK_ATTR, LINK_STYLE, SANDBOX, blockedNotice, cleanDoc, decorate, docName, findLink, findLinkInPath, handleLink, imageName,
+  isExternalUrl, leftovers, linkKind, sameFolderName, sanitize,
 } from "../../../web/tabs/assets/doc_frame.js";
 import { REPO } from "./support.js";
 
@@ -111,52 +111,83 @@ describe("문서 안 그림", () => {
 // 문서 iframe 안 노드 흉내: localName·nodeType·parentNode·getAttribute(NS).
 const XLINK = "http://www.w3.org/1999/xlink";
 
-// cleanDoc 용 작은 가짜 DOM: querySelectorAll("*")(문서 순서, template 안은 보지 않음)·속성(이름공간 포함)·remove·template.content.
-function fakeEl(localName, attrs = {}, children = [], { xlink = {}, text = "" } = {}) {
-  const el = {
-    nodeType: 1, localName, parentNode: null, children: [], textContent: text,
-    attrList: [
+// 정제용 작은 가짜 DOM. doc_frame.js 는 DOM 을 원형 메서드·getter 로만 다루므로(safeCall·safeGet) 메서드를 클래스에 둔다.
+// querySelectorAll("*")(문서 순서, template 안은 보지 않음)·속성(이름공간 포함)·remove·prepend·template.content.
+// 글로 만들기(outerHTML)는 JSON 이고, 다시 파싱(fakeParse)할 수 있다.
+class FakeNode {
+  constructor(tag, attrs = {}, children = [], { xlink = {}, text = "" } = {}) {
+    this._tag = tag;
+    this._text = text;
+    this._parent = null;
+    this.children = [];
+    this.attrList = [
       ...Object.entries(attrs).map(([name, value]) => ({ ns: null, name, local: name, value })),
       ...Object.entries(xlink).map(([local, value]) => ({ ns: XLINK, name: `xlink:${local}`, local, value })),
-    ],
-    get attributes() { return this.attrList.map(({ name, value }) => ({ name, value })); },
-    getAttribute(name) { return this.attrList.find((a) => a.name === name)?.value ?? null; },
-    getAttributeNS(ns, local) { return this.attrList.find((a) => a.ns === ns && a.local === local)?.value ?? null; },
-    hasAttribute(name) { return this.attrList.some((a) => a.name === name); },
-    setAttribute(name, value) {
-      const found = this.attrList.find((a) => a.name === name);
-      if (found) found.value = String(value);
-      else this.attrList.push({ ns: null, name, local: name, value: String(value) });
-    },
-    removeAttribute(name) { this.attrList = this.attrList.filter((a) => a.name !== name); },
-    removeAttributeNS(ns, local) { this.attrList = this.attrList.filter((a) => !(a.ns === ns && a.local === local)); },
-    remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter((c) => c !== this); this.parentNode = null; },
-    prepend(...nodes) { nodes.forEach((n) => { n.parentNode = this; }); this.children.unshift(...nodes); },
-    querySelectorAll(selector) {
-      expect(selector).toBe("*");
-      const out = [];
-      const walk = (node) => node.children.forEach((child) => { out.push(child); walk(child); });
-      walk(this);
-      return out;
-    },
-  };
-  if (localName === "template") {
-    el.content = fakeEl("#fragment", {}, children);
-    el.content.nodeType = 11;
-  } else {
-    children.forEach((child) => { child.parentNode = el; el.children.push(child); });
+    ];
+    if (tag === "template") {
+      this._content = new FakeNode("#fragment", {}, children);
+    } else {
+      children.forEach((child) => { child._parent = this; this.children.push(child); });
+    }
   }
-  return el;
+  get nodeType() { return this._tag === "#document" ? 9 : this._tag === "#fragment" ? 11 : 1; }
+  get localName() { return this._tag; }
+  get content() { return this._content ?? null; }
+  get textContent() { return this._text; }
+  set textContent(value) { this._text = String(value); }
+  get head() { return this.querySelectorAll("*").find((el) => el._tag === "head"); }
+  get documentElement() { return this.children[0]; }
+  get doctype() { return null; }
+  get outerHTML() { return JSON.stringify(toJson(this)); }
+  getAttribute(name) { return this.attrList.find((a) => a.name === name)?.value ?? null; }
+  getAttributeNS(ns, local) { return this.attrList.find((a) => a.ns === ns && a.local === local)?.value ?? null; }
+  getAttributeNames() { return this.attrList.map((a) => a.name); }
+  hasAttribute(name) { return this.attrList.some((a) => a.name === name); }
+  setAttribute(name, value) {
+    const found = this.attrList.find((a) => a.name === name);
+    if (found) found.value = String(value);
+    else this.attrList.push({ ns: null, name, local: name, value: String(value) });
+  }
+  removeAttribute(name) { this.attrList = this.attrList.filter((a) => a.name !== name); }
+  removeAttributeNS(ns, local) { this.attrList = this.attrList.filter((a) => !(a.ns === ns && a.local === local)); }
+  remove() { if (this._parent) this._parent.children = this._parent.children.filter((c) => c !== this); this._parent = null; }
+  prepend(...nodes) { nodes.forEach((n) => { n._parent = this; }); this.children.unshift(...nodes); }
+  createElement(tag) { return new FakeNode(tag); }
+  querySelectorAll(selector) {
+    expect(selector).toBe("*");
+    const out = [];
+    const walk = (node) => node.children.forEach((child) => { out.push(child); walk(child); });
+    walk(this);
+    return out;
+  }
 }
+const fakeEl = (...args) => new FakeNode(...args);
 function fakeDoc(headChildren, bodyChildren) {
-  const head = fakeEl("head", {}, headChildren);
-  const html = fakeEl("html", {}, [head, fakeEl("body", {}, bodyChildren)]);
-  const doc = fakeEl("#document", {}, [html]);
-  doc.nodeType = 9;
-  doc.head = head;
-  doc.createElement = (tag) => fakeEl(tag);
+  return new FakeNode("#document", {}, [new FakeNode("html", {}, [new FakeNode("head", {}, headChildren), new FakeNode("body", {}, bodyChildren)])]);
+}
+function toJson(node) {
+  return { t: node._tag, a: node.attrList.map(({ ns, name, local, value }) => [ns, name, local, value]), x: node._text,
+    c: (node._content ?? node).children.map(toJson) };
+}
+// 가짜 파서. 실제 HTML 파서처럼 '파싱 → 글 → 파싱' 이 같은 트리를 주지 않는 경우를 흉내 낸다:
+// 원본 글의 <style> 이 "MXSS1:" + 요소 JSON 이면 첫 파싱에서는 글("MXSS:" + JSON)로 남고, 그 글을 다시 파싱하면 그 자리에
+// 진짜 요소로 살아난다(중첩 form + MathML <style> mXSS 흉내).
+function fakeParse(text) {
+  const build = (j, revive) => {
+    if (revive && j.t === "style" && j.x.startsWith("MXSS:")) return build(JSON.parse(j.x.slice(5)), false);
+    if (j.t === "style" && j.x.startsWith("MXSS1:")) return new FakeNode("style", {}, [], { text: "MXSS:" + j.x.slice(6) });
+    const node = new FakeNode(j.t, {}, j.t === "template" ? [] : j.c.map((c) => build(c, revive)), { text: j.x });
+    node.attrList = j.a.map(([ns, name, local, value]) => ({ ns, name, local, value }));
+    if (j.t === "template") node._content = new FakeNode("#fragment", {}, j.c.map((c) => build(c, revive)));
+    return node;
+  };
+  const html = build(JSON.parse(text), true);
+  const doc = new FakeNode("#document");
+  html._parent = doc;
+  doc.children.push(html);
   return doc;
 }
+const docText = (doc) => doc.documentElement.outerHTML;
 // 문서와 template 안까지 모든 요소.
 function everything(root) {
   const out = [];
@@ -301,25 +332,97 @@ describe("문서 정제(cleanDoc)", () => {
     const tags = everything(doc).map((el) => el.localName);
     expect(tags).not.toContain("base");
     expect(tags).not.toContain("script");
-    expect(everything(doc).filter((el) => el.localName === "meta").map((el) => el.getAttribute("http-equiv") ?? el.getAttribute("charset")))
-      .toEqual(["Content-Security-Policy", "utf-8"]);
+    expect(everything(doc).filter((el) => el.localName === "meta").map((el) => el.getAttribute("http-equiv") ?? el.getAttribute("charset"))).toEqual(["utf-8"]);
     expect(everything(doc).find((el) => el.localName === "template").getAttribute("shadowrootmode")).toBe("open");
-    const content = everything(doc).find((el) => el.localName === "template").content;
-    expect([content.children[0].localName, content.children[0].textContent.includes(LINK_ATTR)]).toEqual(["style", true]);
   });
 
-  test("head 맨 앞에 문서 CSP 와 링크 모양 style 을 넣는다", () => {
+  test("다른 문서를 품는 iframe·frame·object·embed 는 지우고, 어느 요소든 srcdoc 속성은 지운다(중첩 iframe srcdoc 안은 정제·처리기가 닿지 않는다)", () => {
+    const doc = fakeDoc([], [
+      fakeEl("iframe", { srcdoc: "<a href=https://example.org/nested>n</a>" }),
+      fakeEl("frame", { src: "x.html" }),
+      fakeEl("object", { data: "x.html" }, [fakeEl("embed", { src: "x.html" })]),
+      fakeEl("div", { srcdoc: "x", SrcDoc: "y" }),
+      fakeEl("template", { shadowrootmode: "open" }, [fakeEl("iframe", { srcdoc: "<a href=x>" })]),
+    ]);
+    cleanDoc(doc);
+    expect(everything(doc).map((el) => [el.localName, el.getAttributeNames()])).toEqual([["html", []], ["head", []], ["body", []], ["div", []], ["template", ["shadowrootmode"]]]);
+    expect(leftovers(doc)).toEqual([]);
+  });
+
+  test("문서의 DOM clobbering(form 의 removeAttribute·attributes·getAttributeNames 를 가린 이름)에 흔들리지 않는다", () => {
+    const form = fakeEl("form", { onsubmit: "x()", target: "_blank" }, [fakeEl("input", { name: "removeAttribute" }), fakeEl("input", { name: "attributes" })]);
+    // 실제 DOM 에서 form 의 이름 속성은 인스턴스에서 메서드를 가린다. 가짜에서도 인스턴스에 같은 이름을 둔다.
+    for (const [name, value] of Object.entries({ removeAttribute: form.children[0], getAttributeNames: form.children[1], attributes: [form.children[1]], localName: "a", remove: null })) {
+      Object.defineProperty(form, name, { value, configurable: true });
+    }
+    const doc = fakeDoc([], [form]);
+    const { counts } = cleanDoc(doc);
+    expect([FakeNode.prototype.getAttributeNames.call(form), counts.handlers]).toEqual([[], 1]);
+  });
+
+  test("decorate: head 맨 앞에 문서 CSP 와 링크 모양 style, shadow DOM 이 될 template 안에도 링크 모양 style", () => {
     const doc = sample();
     cleanDoc(doc);
+    decorate(doc);
     const [meta, style] = doc.head.children;
     expect([meta.localName, meta.getAttribute("http-equiv"), meta.getAttribute("content")]).toEqual(["meta", "Content-Security-Policy", DOC_CSP]);
-    expect([style.localName, style.textContent.includes(LINK_ATTR)]).toEqual(["style", true]);
+    expect([style.localName, style.textContent]).toEqual(["style", LINK_STYLE]);
+    const content = everything(doc).find((el) => el.localName === "template").content;
+    expect([content.children[0].localName, content.children[0].textContent]).toEqual(["style", LINK_STYLE]);
   });
 
   test("막히는 것의 수와 바꿔 넣을 같은 폴더 그림", () => {
     const { counts, images } = cleanDoc(sample());
     expect(counts).toEqual({ scripts: 3, handlers: 2, images: 1, styles: 3 });
     expect(images.map(({ el, name }) => [el.getAttribute("src"), name])).toEqual([["결재선.svg", "결재선.svg"]]);
+  });
+});
+
+describe("고정점 정제(sanitize)와 마지막 검사(leftovers)", () => {
+  // 첫 파싱 때는 <style> 글이던 링크·refresh 가 다시 파싱하면 진짜 요소가 되는 문서(mXSS 흉내).
+  const hidden = (el) => fakeEl("style", {}, [], { text: "MXSS1:" + JSON.stringify(toJson(el)) });
+  const mxss = () => docText(fakeDoc([hidden(fakeEl("meta", { "http-equiv": "refresh", content: "0;url=https://x" }))], [
+    fakeEl("form", { id: "a" }, [fakeEl("math", {}, [hidden(fakeEl("a", { href: "https://example.org/mx", target: "_blank" }))])]),
+  ]));
+
+  test("mXSS: 한 번 정제한 글을 다시 파싱하면 진짜 <a href> 가 살아나는 문서도 되풀이 정제로 href 0 이 된다", () => {
+    const once = fakeParse(mxss());
+    cleanDoc(once);
+    expect(leftovers(fakeParse(docText(once))).sort()).toEqual(["<a href>", "<a target>", "<meta>"]);  // 한 번만 정제하면 남는다
+    const result = sanitize(mxss(), fakeParse);
+    expect(result).not.toBeNull();
+    expect(leftovers(fakeParse(docText(result.doc)))).toEqual([]);
+    const a = everything(result.doc).find((el) => el.localName === "a");
+    expect([a.getAttribute("href"), a.getAttribute(LINK_ATTR)]).toEqual([null, "https://example.org/mx"]);
+  });
+
+  test("다시 파싱해도 결과가 정해지지 않는 문서는 null(띄우지 않는다), 상한 횟수만큼만 파싱한다", () => {
+    let calls = 0;
+    const drifting = (text) => {
+      calls += 1;
+      const doc = fakeParse(text);
+      doc.head.prepend(fakeEl("p", { "data-n": String(calls) }));  // 파싱할 때마다 달라진다
+      return doc;
+    };
+    expect(sanitize(docText(fakeDoc([], [])), drifting, 4)).toBeNull();
+    expect(calls).toBe(4);
+  });
+
+  test("보통 문서는 두 번째 파싱에서 멈추고 스크립트 수는 처음 것 그대로", () => {
+    let calls = 0;
+    const counting = (text) => { calls += 1; return fakeParse(text); };
+    const result = sanitize(docText(fakeDoc([fakeEl("script", {})], [fakeEl("a", { href: "#x", onclick: "y()" })])), counting);
+    expect([calls, result.counts.scripts, result.counts.handlers]).toEqual([2, 1, 1]);
+  });
+
+  test("leftovers 는 링크 href·xlink:href, iframe 류, srcdoc·target·on*, script·base·meta refresh 를 찾는다", () => {
+    const doc = fakeDoc([fakeEl("base", {}), fakeEl("meta", { "http-equiv": "REFRESH" })], [
+      fakeEl("a", { href: "x" }), fakeEl("svg", {}, [fakeEl("a", {}, [], { xlink: { href: "y" } })]), fakeEl("iframe", {}),
+      fakeEl("div", { srcdoc: "z", onclick: "w" }), fakeEl("a", { target: "_blank" }), fakeEl("script", {}),
+      fakeEl("template", {}, [fakeEl("area", { href: "q" })]),
+      fakeEl("link", { rel: "stylesheet", href: "https://x/a.css" }), fakeEl("img", { src: "data:image/png;base64,AA" }),
+    ]);
+    expect(leftovers(doc)).toEqual(["<base>", "<meta>", "<a href>", "<a href>", "<iframe>", "<div srcdoc>", "<div onclick>", "<a target>", "<script>", "<area href>"]);
   });
 });
 
@@ -330,6 +433,7 @@ describe("막힘 안내", () => {
     for (const part of ["스크립트 3개", "이벤트 속성 1곳", "그림 2개", "스타일시트·글꼴 1개", "원본을 내려받아"]) expect(text).toContain(part);
     expect(blockedNotice({ images: 1 })).toContain("그림 1개");
     expect(blockedNotice({ scripts: 2 })).toContain("스크립트 2개는 ");
+    expect(blockedNotice({ handlers: 1 })).toContain("이 문서의 이벤트 속성 1곳은 ");
   });
 
   test("바깥 주소 판별", () => {

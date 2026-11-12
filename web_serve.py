@@ -57,6 +57,8 @@ SHARED_FILES = {
     # plans 뷰어의 md 렌더러와 내려받기 템플릿.
     "tabs/plans/marked.umd.js": REPO_ROOT / "tabs" / "_common" / "vendor" / "marked.umd.js",
     "tabs/plans/templates/YYYY-MM-DD 계획 제목.md": REPO_ROOT / "tabs" / "plans" / "templates" / "YYYY-MM-DD 계획 제목.md",
+    # assets 내려받기 템플릿.
+    "tabs/assets/templates/의사결정_문서_제목.html": REPO_ROOT / "tabs" / "assets" / "templates" / "의사결정_문서_제목.html",
 }
 
 CSP = (

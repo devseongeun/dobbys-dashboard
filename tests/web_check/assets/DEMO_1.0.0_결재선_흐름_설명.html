@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="feature" content="결제"><meta name="created" content="2026-11-10">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>결재선 흐름 설명</title>
+<!-- 확인용 가짜 문서: 설명 페이지처럼 본문 일부를 스크립트(인라인·cdnjs)로 그린다. 실제 문서가 아니다. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap">
+<style>
+:root{--bg:#f7f8fa;--ink:#1c1f26;--acc:#2563eb}
+body{max-width:960px;margin:0 auto;padding:32px 24px;background:var(--bg);color:var(--ink);font:15px/1.7 "Noto Sans KR",-apple-system,sans-serif}
+.panel{background:#fff;border:1px solid #e2e5ea;border-radius:12px;padding:16px 20px;margin:16px 0}
+.tabs button{margin-right:6px}
+#flow:empty::before{content:"(스크립트가 그리는 흐름도 자리)";color:#8a90a0}
+#chart-box{height:220px}
+</style>
+</head>
+<body>
+<h1>결재선 흐름 설명</h1>
+<p class="sub">결론: 결재선은 기안 → 팀장 → 재무 순서로 고정한다.</p>
+<nav><a href="#detail">세부 근거로</a> · <a href="DEMO_1.0.0_PG사_결제창_연동_방식_문의.html">결제창 문의 문서</a> · <a href="https://example.com/policy">사내 정책(바깥)</a> · <a href="부속/메모.html">하위 폴더 링크</a></nav>
+<noscript><p class="panel">이 문서의 흐름도와 차트는 스크립트로 그린다. 스크립트가 꺼져 있으면 아래 표로 본다.</p></noscript>
+<section class="panel"><h2>흐름도</h2><div id="flow"></div><img src="결재선.svg" alt="결재선 그림" width="320"></section>
+<section class="panel"><h2>처리 시간</h2><div id="chart-box"><canvas id="chart"></canvas></div></section>
+<section class="panel tabs"><button onclick="document.getElementById('detail').hidden=false">세부 열기</button></section>
+<section class="panel" id="detail"><h2>세부 근거</h2>
+<table><thead><tr><th>단계</th><th>평균 소요</th></tr></thead><tbody><tr><td>기안</td><td>0.5일</td></tr><tr><td>팀장</td><td>1일</td></tr><tr><td>재무</td><td>2일</td></tr></tbody></table>
+</section>
+<script>
+document.getElementById("flow").innerHTML = "<b>기안</b> → <b>팀장</b> → <b>재무</b>";
+document.body.dataset.inline = "ran";
+try { localStorage.setItem("probe", "inline-script-ran"); document.body.dataset.storage = "same-origin"; } catch (e) { document.body.dataset.storage = "blocked"; }
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+if (window.Chart) new Chart(document.getElementById("chart"), { type: "bar", data: { labels: ["기안", "팀장", "재무"], datasets: [{ label: "일", data: [0.5, 1, 2] }] } });
+</script>
+</body>
+</html>

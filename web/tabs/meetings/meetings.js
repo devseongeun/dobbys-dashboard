@@ -3,8 +3,8 @@
 // 로컬판과 다른 곳(나머지 함수는 같다 — tests/js/meetings_web/same_screen.test.js):
 // - getJson·postJson: 서버 fetch 대신 backend.js(같은 주소·같은 응답 모양, 폴더는 FSA 핸들로 직접 읽고 쓴다). 409 면 알리고 다시 읽는다.
 // - renderMarkdown: md·메모의 원시 HTML 을 plans 뷰어와 같은 허용 목록(sanitize.js)으로 거른다.
-// - renderPreview: /file 대신 Vault 핸들에서 읽은 Blob. 격리 규칙은 preview_frame.js(HTML 은 스크립트·새 창 없는 sandbox
-//   iframe 이고 링크는 부모가 처리, SVG·그림은 <img>, 다 읽으면 blob 주소를 거둔다).
+// - renderPreview: /file 대신 Vault 핸들에서 읽은 Blob. 격리 규칙은 preview_frame.js(HTML 은 정제한 글을 스크립트·새 창 없는
+//   sandbox iframe 의 srcdoc 으로 넣고 링크는 부모가 처리, SVG·그림은 data: 주소 <img>, blob 주소는 PDF 만).
 // - 시작: 설정의 Vault·회의 폴더를 연결하고, 못 하면 까닭(권한이 'prompt' 면 '폴더 다시 연결')을 보인다.
 import {
   clampPane, dropIndex, fileInfo, filterMeetings, isWebUrl, linkLabel, obsidianToMarkdown, obsidianUri, parseState,
@@ -14,7 +14,7 @@ import { sanitize } from "../plans/sanitize.js";
 import { tabContext } from "../../lib/tab.js";
 import * as fsa from "../../lib/fsa.js";
 import { openFolders } from "./backend.js";
-import { cleanHtml, handleLink, previewKind, previewNode } from "./preview_frame.js";
+import { domAdapter, handleLink, previewKind, previewNode, sanitizeHtml } from "./preview_frame.js";
 
 const $ = (id) => document.getElementById(id);
 // Obsidian Canvas 색 프리셋 1~6.
@@ -37,7 +37,7 @@ let searchTimer = 0;
 let noticeTimer = 0;
 const tree = { open: new Set(), dirs: new Map() };
 let backend = null; // backend.js. 시작할 때 설정의 폴더로 만든다.
-let previewUrl = ""; // 미리보기의 Blob 주소. 미리보기가 바뀌거나 닫히면 거둔다(HTML·그림은 다 읽자마자 거둔다).
+let previewUrl = ""; // PDF 미리보기의 Blob 주소. 미리보기가 바뀌거나 닫히면 거둔다(HTML·그림은 blob 주소를 만들지 않는다).
 
 function el(tag, cls, text) {
   const node = document.createElement(tag);
@@ -516,20 +516,32 @@ function setPreviewUrl(url) {
 }
 
 // 미리보기 HTML 안 링크를 부모가 받는다(preview_frame.js handleLink). 바깥 주소만 새 탭(noopener)으로 연다.
+// 문서 쪽 이름이 메서드를 덮어도(<img name="addEventListener"> 등) 흔들리지 않게 원형 메서드로 부른다.
 function wirePreviewLinks(frame) {
   let inner;
   try { inner = frame.contentDocument; } catch { return; }
   if (!inner) return;
+  const byId = (id) => Document.prototype.getElementById.call(inner, id) ?? Document.prototype.getElementsByName.call(inner, id)[0];
   const actions = {
-    scrollTo: (id) => (id ? inner.getElementById(id) ?? inner.getElementsByName(id)[0] : null)?.scrollIntoView({ block: "start" }),
+    scrollTo: (id) => (id ? byId(id) : null)?.scrollIntoView({ block: "start" }),
     openExternal: (href) => window.open(new URL(href, location.href).href, "_blank", "noopener,noreferrer"),
     note: (text) => notice(text),
   };
-  for (const type of ["click", "auxclick"]) inner.addEventListener(type, (event) => handleLink(event, actions), true);
+  for (const type of ["click", "auxclick", "keydown"]) {
+    EventTarget.prototype.addEventListener.call(inner, type, (event) => handleLink(event, actions), true);
+  }
 }
 
+const readDataUrl = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = () => reject(reader.error);
+  reader.readAsDataURL(blob);
+});
+
 // 오른쪽 미리보기. 업무에 담긴 파일이면 그 카드 정보로, 아니면(Vault 트리에서 고른 파일) 경로로 판단한다.
-// 파일은 Vault 핸들에서 Blob 으로 읽는다. md·txt 는 글로, HTML 은 sandbox iframe, SVG·그림은 <img>, PDF 는 iframe 으로 연다.
+// 파일은 Vault 핸들에서 Blob 으로 읽는다. md·txt 는 글로, HTML 은 정제한 글을 sandbox iframe 의 srcdoc 으로,
+// SVG·그림은 data: 주소 <img> 로, PDF 는 blob 주소 iframe 으로 연다.
 async function renderPreview(state, detail) {
   const path = state.file;
   document.body.classList.toggle("previewing", Boolean(path));
@@ -568,11 +580,20 @@ async function renderPreview(state, detail) {
       body.replaceChildren(doc);
       return;
     }
-    const shown = kind === "html" ? new Blob([cleanHtml(await blob.text(), new DOMParser())], { type: "text/html;charset=utf-8" }) : blob;
-    if (previewKey !== key) return;
-    setPreviewUrl(URL.createObjectURL(shown));
-    const revoke = (url) => { URL.revokeObjectURL(url); if (previewUrl === url) previewUrl = ""; };
-    body.replaceChildren(previewNode(document, kind, previewUrl, view.name, { revoke, onFrame: wirePreviewLinks }));
+    let source;
+    if (kind === "html") {
+      const parser = new DOMParser();
+      const result = sanitizeHtml(await blob.text(), (text) => parser.parseFromString(text, "text/html"), domAdapter(window));
+      if (result.error) { if (previewKey === key) body.replaceChildren(el("p", "msg err", result.error)); return; }
+      source = result.html;
+    } else if (kind === "image") {
+      source = await readDataUrl(blob);
+    } else {
+      source = URL.createObjectURL(blob);
+    }
+    if (previewKey !== key) { if (kind === "pdf") URL.revokeObjectURL(source); return; }
+    if (kind === "pdf") setPreviewUrl(source);
+    body.replaceChildren(previewNode(document, kind, source, view.name, { onFrame: wirePreviewLinks }));
   } catch (err) {
     if (previewKey !== key) return;
     previewKey = ""; // 실패한 키는 남기지 않아 다음 sync 가 다시 시도한다.

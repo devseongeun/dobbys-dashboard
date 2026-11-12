@@ -25,7 +25,7 @@ export function reason(error) {
   }
   if (error?.name === "NotFoundError") return "폴더를 찾을 수 없다(옮겨졌거나 지워졌다). ⚙ 설정에서 다시 고른다";
   if (error?.name === "QuotaExceededError") return "저장 공간이 모자라 쓰지 못했다";
-  if (error?.name === "TypeError" && /name/i.test(error?.message ?? "")) return `브라우저가 받지 않는 파일 이름이다(${error.message})`;
+  if (error?.name === "TypeError" && /Name is not allowed/.test(error?.message ?? "")) return `브라우저가 받지 않는 파일 이름이다(${error.message})`;
   return `${error?.name ?? "Error"}: ${error?.message ?? error}`;
 }
 

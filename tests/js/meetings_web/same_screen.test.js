@@ -39,7 +39,7 @@ function chunks(source) {
 const CHANGED = [/^import /, /^} from /, /^const EDITOR /, /^async function getJson\(/, /^async function postJson\(/, /^function getJson\(/,
   /^function postJson\(/, /^function renderMarkdown\(/, /^async function renderPreview\(/, /^await refreshList\(\);/, /^ensureSelection\(\);$/,
   /^renderTree\(\);$/, /^sync\(\);$/];
-const WEB_ONLY = [/^let backend /, /^let previewUrl /, /^function setPreviewUrl\(/, /^function wirePreviewLinks\(/, /^function showBlocked\(/, /^async function connect\(/,
+const WEB_ONLY = [/^let backend /, /^let previewUrl /, /^function setPreviewUrl\(/, /^function wirePreviewLinks\(/, /^const readDataUrl /, /^function showBlocked\(/, /^async function connect\(/,
   /^if \(await connect\(\)\) \{/];
 const keep = (patterns) => (chunk) => !patterns.some((re) => re.test(chunk.key));
 

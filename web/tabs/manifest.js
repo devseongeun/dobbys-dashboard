@@ -3,8 +3,9 @@
 // - 필드 realPath: true 면 폴더 칸 옆에 '실제 경로(경로 복사용, 선택)' 칸이 생기고 값은 <key>RealPath 로 저장된다.
 // - 필드 accept: file 칸의 확장자 목록(예: [".xlsx"]), mode: 'read'(기본)·'readwrite'.
 // - 항목 validate(settings) → {key: 문구} (선택, async 가능): 칸 검사를 통과한 뒤에만 돈다.
-// 로컬판 순서는 wbs, plans 다.
+// 로컬판 순서는 wbs, plans, meetings 다.
 import { WBS_TAB } from "./wbs/tab.js";
+import { MEETINGS_TAB } from "./meetings/tab.js";
 
 const PLANS = {
   id: "plans",
@@ -30,4 +31,4 @@ const PLANS = {
   ],
 };
 
-export const WEB_TABS = [WBS_TAB, PLANS];
+export const WEB_TABS = [WBS_TAB, PLANS, MEETINGS_TAB];

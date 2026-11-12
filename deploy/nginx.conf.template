@@ -1,0 +1,37 @@
+# 도비의 대시보드 웹 버전 nginx 설정. ${HTTPS_PORT} 는 컨테이너가 뜰 때 환경 변수로 채워진다.
+# - 8080(HTTP): 상태 확인(/healthz)만 답하고 나머지는 HTTPS 주소로 넘긴다. 폴더 선택은 HTTPS 에서만 켜지기 때문
+# - 8443(HTTPS): 모든 요청을 app(web_serve.py)으로 넘긴다. 보안 머리말(CSP 등)·Host/Origin 검사는 web_serve.py 가 한다
+# - 접근 로그에는 쿼리를 남기지 않는다. /api/jira 쿼리에 Jira accountId·이슈 키가 실린다
+
+# nginx 기본 설정(http 블록)의 access_log 는 쿼리까지 남기므로, server 블록마다 이 형식으로 덮어쓴다
+log_format noquery '$remote_addr [$time_local] "$request_method $uri $server_protocol" $status $body_bytes_sent';
+
+server {
+  listen 8080;
+  server_tokens off;
+  access_log /var/log/nginx/access.log noquery;
+  location = /healthz { access_log off; default_type text/plain; return 200 "ok\n"; }
+  location / { return 301 https://$host:${HTTPS_PORT}$request_uri; }
+}
+
+server {
+  listen 8443 ssl;
+  http2 on;
+  server_tokens off;
+  access_log /var/log/nginx/access.log noquery;
+  ssl_certificate     /etc/nginx/certs/server.crt;
+  ssl_certificate_key /etc/nginx/certs/server.key;
+  ssl_protocols TLSv1.2 TLSv1.3;
+
+  # web_serve.py 가 /api 본문을 64 KiB 로 막는다. 그보다 큰 것은 여기서 먼저 끊는다
+  client_max_body_size 64k;
+
+  location / {
+    proxy_pass http://app:8788;
+    proxy_http_version 1.1;
+    # 포트까지 넘긴다($http_host). web_serve.py 는 Host 를 ALLOWED_ORIGINS 의 host:port 와 비교한다($host 는 포트를 뗀다)
+    proxy_set_header Host $http_host;
+    proxy_set_header Connection "";
+    proxy_read_timeout 40s;  # /api/jira 는 30초 안에 답하거나 504 를 준다
+  }
+}

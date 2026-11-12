@@ -1,9 +1,12 @@
 """`GET api/version` → {"commit": "<짧은 sha>", "date": "YYYY-MM-DD"}. 셸 사이드바의 버전 줄이 쓴다.
 
-서버 기동 때 한 번 git 으로 읽는다(web_serve.py main 이 `load()` 를 부른다). git 저장소가 아니거나 git 이 없으면 둘 다 null.
+서버 기동 때 한 번 읽는다(web_serve.py main 이 `load()` 를 부른다). 환경변수 `DOBBYS_COMMIT`(과 `DOBBYS_COMMIT_DATE`)가
+있으면 그 값을 쓴다(git 이 없는 Docker 이미지는 빌드 때 이 값을 굽는다). 없으면 git 으로 읽고, git 저장소가 아니거나
+git 이 없으면 둘 다 null.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -14,6 +17,9 @@ _cached: dict | None = None
 
 
 def read(repo: Path = REPO_ROOT) -> dict:
+    commit = os.environ.get("DOBBYS_COMMIT", "").strip()
+    if commit:
+        return {"commit": commit, "date": os.environ.get("DOBBYS_COMMIT_DATE", "").strip() or None}
     try:
         out = subprocess.run(
             ["git", "-C", str(repo), "log", "-1", "--format=%h%n%cs"],

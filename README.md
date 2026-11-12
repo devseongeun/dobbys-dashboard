@@ -183,7 +183,7 @@ cd ~/workspace/dobbys-dashboard && python3 serve.py
 - **WBS·Jira 탭**: WBS 엑셀(.xlsx)은 브라우저가 직접 읽고 서버로 보내지 않는다. 권한이 풀리면 탭 위 **WBS 엑셀 다시 연결**을 누른다. 수동 연결·보드 칸 지정·일정 초안은 IndexedDB 에 남는다. Jira 로그인(이메일·API token)은 탭 안에서 하고 브라우저에만 둔다(기본은 창을 닫으면 사라지고, **이 브라우저에 기억**을 켜면 localStorage).
 - **Jira 프록시(`/api/jira`)**: Atlassian 이 API token 방식의 브라우저 직접 호출(CORS)을 받지 않아 서버가 전달만 한다. `https://<사이트><JIRA_HOST_SUFFIX>` 의 `GET /rest/api/3/myself`·`/rest/api/3/search/jql`·`/rest/api/3/issue/<KEY>/worklog` 만, 경로마다 정해진 쿼리와 로컬판이 만드는 JQL 모양만 통과한다. `Authorization` 은 받은 그대로 한 번 넘기고 저장·로그하지 않으며 오류 응답에도 싣지 않는다. 리다이렉트를 따라가지 않고 30초 안에 답이 없으면 504 다.
 - 경로 칸에는 고른 폴더·파일 이름만 보인다(브라우저는 절대 경로를 모른다). 계획 이름 옆 **경로 복사**를 쓰려면 ⚙ 설정의 '실제 경로(경로 복사용, 선택)' 칸에 이 PC 에서의 폴더 경로를 적는다. PC·브라우저마다 다시 적는다.
-- ⬆ 업데이트·Finder 선택 창·키체인은 없다. 사이드바 아래 버전 줄은 서버 체크아웃의 커밋(`api/version`)이다. 서버 갱신은 운영자가 pull 뒤 재시작한다.
+- ⬆ 업데이트·Finder 선택 창·키체인은 없다. 사이드바 아래 버전 줄은 서버 체크아웃의 커밋(`api/version`, 환경변수 `DOBBYS_COMMIT`·`DOBBYS_COMMIT_DATE` 가 있으면 그 값)이다. 서버 갱신은 운영자가 pull 뒤 재시작한다.
 
 실행:
 
@@ -200,7 +200,9 @@ HOST=127.0.0.1 PORT=8788 ALLOWED_ORIGINS=https://dash.example.com python3 web_se
 | `JIRA_HOST_SUFFIX` | `.atlassian.net` | `/api/jira` 가 받는 Jira 주소 끝. `<사이트>` 는 영문 소문자·숫자·`-` 한 단어다. |
 | `ALLOWED_ORIGINS` | `http://127.0.0.1:<PORT>,http://localhost:<PORT>` | 쉼표 구분 origin. 요청 `Host` 는 이 중 하나의 host[:port] 여야 하고(아니면 421), `/api/*` 의 `Origin` 은 이 중 하나와 같아야 한다(아니면 403). |
 
-사내 서버에서는 HTTPS 리버스 프록시(nginx 등) 뒤에 둔다. 프록시는 원래 `Host` 를 넘기고(nginx `proxy_set_header Host $host;`), `ALLOWED_ORIGINS` 에 사용자가 여는 주소(예: `https://dash.example.com`)를 적는다. 하위 경로(`/dashboard/`)에 올려도 화면은 상대 경로만 쓰므로 그대로 동작한다. 이때 프록시가 접두어를 떼고 넘긴다.
+사내 서버에서는 HTTPS 리버스 프록시(nginx 등) 뒤에 둔다. 프록시는 원래 `Host` 를 포트까지 넘기고(nginx `proxy_set_header Host $http_host;`. `$host` 는 포트를 떼어 443 이 아닌 포트에서 421 이 된다), `ALLOWED_ORIGINS` 에 사용자가 여는 주소(예: `https://dash.example.com`)를 적는다. 하위 경로(`/dashboard/`)에 올려도 화면은 상대 경로만 쓰므로 그대로 동작한다. 이때 프록시가 접두어를 떼고 넘긴다.
+
+**Docker**: `deploy/` 의 compose 가 nginx(자체 서명 인증서로 HTTPS) + `web_serve.py` 두 컨테이너를 띄운다. `cd deploy && cp .env.example .env && docker compose up -d --build` 뒤 `https://localhost:9443`. 자세한 것은 [deploy/README.md](deploy/README.md).
 
 서버가 하는 검사: `web/` 밖 경로·숨김 파일 거절(웹이 함께 쓰는 로컬판 파일은 `web_serve.py` 의 `SHARED_FILES` 목록만), 모든 응답에 `Content-Security-Policy`(스크립트는 같은 출처만)·`X-Content-Type-Options: nosniff`·`Referrer-Policy: no-referrer`, `/api/*` 는 `X-Dobbys-Proxy: 1` 헤더 필수·본문 64 KiB 까지. 로그에는 메서드·경로·상태만 남고 쿼리·헤더는 남지 않는다.
 

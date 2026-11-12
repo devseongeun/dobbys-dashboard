@@ -1,0 +1,50 @@
+# 도비의 대시보드 웹 버전 배포 스택. 비밀값 없음(Jira token 은 각자 브라우저에만 있다).
+#
+#   브라우저 ─▶ http://서버:HTTP_PORT ─(넘김)─▶ https://서버:HTTPS_PORT ─▶ proxy(nginx, TLS) ─▶ app(web_serve.py :8788, 내부망)
+#
+# 실행: deploy 폴더에서  cp .env.example .env  →  docker compose up -d --build
+name: dobbys-dashboard
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: app
+      args:
+        DOBBYS_COMMIT: ${DOBBYS_COMMIT:-}
+        DOBBYS_COMMIT_DATE: ${DOBBYS_COMMIT_DATE:-}
+    image: dobbys-dashboard-app:${IMAGE_TAG:-local}
+    container_name: dobbys-dashboard-app
+    restart: unless-stopped
+    environment:
+      # 사용자가 여는 주소. 요청 Host·/api 의 Origin 이 이 중 하나여야 한다(web_serve.py). 마지막은 아래 healthcheck 용
+      ALLOWED_ORIGINS: https://${CERT_HOST:-localhost}:${HTTPS_PORT:-9443},https://localhost:${HTTPS_PORT:-9443},http://127.0.0.1:8788
+      JIRA_HOST_SUFFIX: ${JIRA_HOST_SUFFIX:-.atlassian.net}
+    expose:
+      - "8788"                     # 내부 네트워크에만. 바깥에는 proxy 만 연다
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen(u.Request('http://127.0.0.1:8788/api/version', headers={'X-Dobbys-Proxy': '1'}), timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  proxy:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: proxy
+    image: dobbys-dashboard-proxy:${IMAGE_TAG:-local}
+    container_name: dobbys-dashboard-proxy
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      HTTPS_PORT: ${HTTPS_PORT:-9443}     # HTTP 로 들어오면 이 포트의 HTTPS 주소로 넘긴다
+      CERT_HOST: ${CERT_HOST:-localhost}  # 자체 서명 인증서에 넣을 서버 주소(IP 또는 도메인)
+    ports:
+      - "${HTTP_PORT:-8091}:8080"
+      - "${HTTPS_PORT:-9443}:8443"
+    volumes:
+      - ./certs:/etc/nginx/certs          # 인증서 보관. 처음 뜰 때 비어 있으면 자체 서명 인증서를 만든다

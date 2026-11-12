@@ -1,0 +1,15 @@
+# 이미지에는 웹 버전이 쓰는 파일만 넣는다(Dockerfile 의 COPY 와 같은 목록). .git·테스트·로컬판 설정은 넣지 않는다.
+*
+!web_serve.py
+!jira_client.py
+!api/
+!web/
+!shell/route.js
+!shell/order.js
+!shell/onboarding_flow.js
+!shell/shell.css
+!tabs/_common/vendor/marked.umd.js
+!tabs/plans/templates/
+!deploy/nginx.conf.template
+!deploy/10-self-signed-cert.sh
+**/__pycache__

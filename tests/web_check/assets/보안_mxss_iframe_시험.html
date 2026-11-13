@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>보안 시험: mXSS·중첩 iframe·링크 색</title>
+<!-- Chrome 확인용(웹 번들에 넣지 않는다). assets 3회차 리뷰 중간 1(정제 뒤 진짜 href 가 남는 길 둘)과 사소 1·2 를 본다.
+     기대: 중첩 iframe 은 지워지고, 파싱·직렬화 왕복으로 되살아나는 MXSS 링크도 href 가 없다(렌더된 문서 :any-link 0),
+     문서 CSS 의 a{color} 가 링크 모양 style 을 이긴다(빨강), form clobbering 이 있어도 문서가 열린다. -->
+<style>a{color:rgb(200,0,0)}</style>
+</head>
+<body>
+<h1>mXSS·중첩 iframe 시험</h1>
+<p><a id="red" href="#end">문서 CSS 로 빨강이어야 하는 링크(#end)</a></p>
+<iframe id="nested" srcdoc="<a href=https://example.org/nested target=_blank>중첩 iframe 링크</a>"></iframe>
+<form><input name="removeAttribute"><input name="attributes"><input name="getAttributeNames"><input name="localName"></form>
+<form onsubmit="x()" target="_blank"><input name="attributes"><input name="attributes"></form>
+<div style="height:1500px"></div>
+<p id="end">END-MARK</p>
+<form id=a><math><mtext></form><form><mglyph><style></math><a id="mx" href="https://example.org/mx" target="_blank">MXSS 링크</a>
+</body>
+</html>

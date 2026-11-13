@@ -1,0 +1,7 @@
+/* 웹 버전에만 있는 규칙. 로컬판 CSS 는 weekly.css(그대로 옮긴 것)에 있다. */
+/* 폴더 읽기 안내·경고 띠: 폴더 없음·권한 다시 묻기·건너뛴 초안. */
+.web-banner{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;padding:12px 22px;
+border-bottom:1px solid var(--border);background:var(--surface-2);color:var(--muted);
+font-size:14px;letter-spacing:-.016em;line-height:1.5}
+.web-banner[hidden]{display:none}
+.web-banner .lines{white-space:pre-line;flex:1 1 320px;min-width:0;overflow-wrap:anywhere}

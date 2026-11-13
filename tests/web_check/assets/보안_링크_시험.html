@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="feature" content="보안 시험"><meta name="created" content="2026-11-12">
+<title>보안 링크 시험</title>
+<!-- 확인용 가짜 문서: 문서가 iframe(sandbox) 밖으로 나가는 길을 모아 둔다. 실제 문서가 아니다. -->
+<base target="_blank">
+<link rel="stylesheet" href="https://cdn.example.com/theme.css">
+<style>@import url("https://fonts.example.com/font.css"); body{font:15px/1.8 sans-serif;max-width:900px;margin:0 auto;padding:24px} a{display:inline-block;margin:4px 12px 4px 0}</style>
+<script type="module" src="http://127.0.0.1:8811/lib/secrets.js"></script>
+</head>
+<body>
+<h1>보안 링크 시험</h1>
+<p id="links">
+<a id="t1" href="#bottom" target="_blank">1 앵커 target=_blank</a>
+<a id="t2" href="#bottom" target="w">2 앵커 target=이름</a>
+<a id="t3" href="#bottom">3 앵커(base target)</a>
+<a id="t4" href="https://example.com/">4 바깥</a>
+<a id="t5" href="회의록.pdf">5 같은 폴더 pdf</a>
+<a id="t6" href="javascript:alert(1)" target="_blank">6 javascript:</a>
+</p>
+<img src="https://img.example.com/x.png" alt="바깥 그림" width="40" height="40">
+<map name="m"><area id="t7" shape="rect" coords="0,0,120,40" href="#bottom" target="_blank" alt="7 area"></map>
+<img usemap="#m" alt="7 area 그림" width="120" height="40" src="결재선.svg">
+<svg width="260" height="40"><a id="t8" xlink:href="#bottom" target="_blank" xmlns:xlink="http://www.w3.org/1999/xlink"><text x="0" y="24">8 SVG xlink 앵커</text></a></svg>
+<form id="f" action="/__form_probe" target="_blank"><button id="t9">9 폼 제출</button></form>
+<div style="height:900px"></div>
+<p id="bottom">문서 끝</p>
+</body>
+</html>

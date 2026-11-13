@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>보안 시험: shadow DOM·DOM clobbering·맨 위로</title>
+<!-- Chrome 확인용(웹 번들에 넣지 않는다). assets 재리뷰 사소 1(선언적 shadow DOM 안 링크)·2(DOM clobbering)·3(#·#top)을 본다.
+     기대: shadow 안 링크도 부모가 처리(바깥은 noopener 새 탭, #end 는 스크롤), clobbering 이 있어도 가로채기가 붙는다,
+     #·#top 은 맨 위로, shadow 안 meta refresh·script 는 지워져 서버 요청이 없다. -->
+<script src="/lib/secrets.js" type="module"></script>
+</head>
+<body>
+<form name="addEventListener"></form>
+<form name="getElementById"></form>
+<img name="documentElement" alt="">
+<h1 id="head">shadow·clobber 시험</h1>
+<div id="host"><template shadowrootmode="closed">
+  <p><a id="s-ext" href="https://example.org/" target="_blank">shadow 안 바깥 링크</a> · <a id="s-end" href="#end">shadow 안 #end</a></p>
+  <meta http-equiv="refresh" content="0;url=/__refresh_probe">
+  <script src="/__shadow_script_probe"></script>
+</template></div>
+<form><input name="parentNode"><input name="parentNode"><p><a id="f-link" href="#end">폼 안 링크(#end)</a></p></form>
+<div style="height:3000px"></div>
+<p id="end">END-MARK</p>
+<p><a id="to-hash" href="#">맨 위로(#)</a> · <a id="to-top" href="#top">맨 위로(#top)</a></p>
+<div style="height:600px"></div>
+</body>
+</html>

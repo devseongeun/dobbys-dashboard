@@ -63,6 +63,8 @@ SHARED_FILES = {
     "tabs/meetings/meetings.css": REPO_ROOT / "tabs" / "meetings" / "meetings.css",
     "tabs/meetings/meetings_lib.js": REPO_ROOT / "tabs" / "meetings" / "meetings_lib.js",
     "tabs/meetings/marked.umd.js": REPO_ROOT / "tabs" / "_common" / "vendor" / "marked.umd.js",
+    # assets 내려받기 템플릿.
+    "tabs/assets/templates/의사결정_문서_제목.html": REPO_ROOT / "tabs" / "assets" / "templates" / "의사결정_문서_제목.html",
     # 주간 보고 내려받기 템플릿(뷰어의 표준 섹션 안내 창도 이 파일을 읽는다).
     "tabs/weekly/templates/YYYY-MM-DD 주간 보고.md": REPO_ROOT / "tabs" / "weekly" / "templates" / "YYYY-MM-DD 주간 보고.md",
 }

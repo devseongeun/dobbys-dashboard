@@ -8,7 +8,7 @@
 
 | 서비스 | 이미지(`Dockerfile` target) | 하는 일 |
 |---|---|---|
-| `app` | `app` (python:3.12-alpine) | 정적 화면 `web/`, `/api/jira` 프록시. Host·Origin 검사와 보안 머리말(CSP 등). 바깥에 포트를 열지 않는다 |
+| `app` | `app` (python:3.12-alpine) | 정적 화면 `web/`, `/api/jira`·`/api/trombone` 프록시. Host·Origin 검사와 보안 머리말(CSP 등). 바깥에 포트를 열지 않는다 |
 | `proxy` | `proxy` (nginx:1.27-alpine) | 8080 → HTTPS 넘김·`/healthz`, 8443 HTTPS → `app`. 인증서가 없으면 첫 기동 때 자체 서명 인증서를 만든다 |
 
 ## 왜 HTTPS 인가
@@ -68,12 +68,14 @@ curl http://127.0.0.1:8091/healthz           # ok
 | `IMAGE_TAG` | `local` | 이미지 번호(보통 커밋) |
 | `DOBBYS_COMMIT`·`DOBBYS_COMMIT_DATE` | 비움 | 사이드바 버전 줄(이미지에 .git 이 없어 빌드 때 굽는다) |
 | `JIRA_HOST_SUFFIX` | `.atlassian.net` | `/api/jira` 가 받는 Jira 주소 끝 |
+| `TROMBONE_BASE` | 비움 | `/api/trombone` 이 부르는 기획서(TROMBONE) 주소. `http(s)://호스트[:포트][/하위 경로]`(예: `http://기획서-서버:8088`, 하위 경로의 `.`·`..`·빈 조각은 거절). 컨테이너에서 닿는 주소여야 한다. 비우면 코멘트 탭이 '서버에 기획서 주소가 설정되지 않았다' 를 보인다 |
 
 포트는 사내 서버의 80(GitLab), 8088(와이어프레임), 8089·8443(AI Office), 8190(SCM)과 겹치지 않게 골랐다.
 
 ## 알아 둘 것
 
-- **파일은 서버로 가지 않는다.** 서버는 화면 파일과 Jira 전달만 한다. 엑셀·md 는 각자 브라우저가 읽는다.
+- **파일은 서버로 가지 않는다.** 서버는 화면 파일과 Jira·기획서 전달만 한다. 엑셀·md 는 각자 브라우저가 읽고, 코멘트 체크리스트 md 도 브라우저가 직접 쓴다.
+- **기획서 주소는 서버만 정한다.** 브라우저가 대상 주소를 보내지 않는다(사내망 열린 프록시 방지). 기획서 로그인 비밀번호·token 은 지나가기만 하고 저장·로그되지 않는다.
 - **nginx 접근 로그는 쿼리를 남기지 않는다**(`noquery` 형식). `/api/jira` 쿼리에 Jira accountId·이슈 키가 실린다. `app` 로그도 메서드·경로·상태만.
 - **기본 이미지**를 Docker Hub 에서 받는다. 막히면 `docker compose build --build-arg PYTHON_IMAGE=<사내 주소>/python:3.12-alpine --build-arg NGINX_IMAGE=<사내 주소>/nginx:1.27-alpine`.
 - **Chrome·Edge 전용.** Safari·Firefox 에는 폴더 선택 기능이 없다.

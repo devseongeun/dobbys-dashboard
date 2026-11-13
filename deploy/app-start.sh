@@ -13,4 +13,6 @@ if [ -z "${ALLOWED_ORIGINS:-}" ]; then
   ALLOWED_ORIGINS="$ORIGINS,http://127.0.0.1:${PORT:-8788}"
   export ALLOWED_ORIGINS
 fi
+# TROMBONE_BASE(기획서 주소, compose 가 .env 에서 넘김)는 그대로 web_serve.py 의 /api/trombone 이 읽는다. 비어 있으면 코멘트 탭이 '주소 미설정'
+export TROMBONE_BASE="${TROMBONE_BASE:-}"
 exec python3 web_serve.py

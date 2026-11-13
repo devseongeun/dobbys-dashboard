@@ -1,4 +1,4 @@
-# 도비의 대시보드 웹 버전 배포 스택. 비밀값 없음(Jira token 은 각자 브라우저에만 있다).
+# 도비의 대시보드 웹 버전 배포 스택. 비밀값 없음(Jira·기획서 token 은 각자 브라우저에만 있다).
 #
 #   브라우저 ─▶ http://서버:HTTP_PORT ─(넘김)─▶ https://서버:HTTPS_PORT ─▶ proxy(nginx, TLS) ─▶ app(web_serve.py :8788, 내부망)
 #
@@ -23,6 +23,7 @@ services:
       CERT_HOST: ${CERT_HOST:-localhost}
       HTTPS_PORT: ${HTTPS_PORT:-9443}
       JIRA_HOST_SUFFIX: ${JIRA_HOST_SUFFIX:-.atlassian.net}
+      TROMBONE_BASE: ${TROMBONE_BASE:-}  # /api/trombone 이 부르는 기획서 주소(서버만 정한다). 비우면 코멘트 탭이 '주소 미설정'
     expose:
       - "8788"                     # 내부 네트워크에만. 바깥에는 proxy 만 연다
     healthcheck:

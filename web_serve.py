@@ -33,6 +33,7 @@ from pathlib import Path  # noqa: E402
 from urllib.parse import parse_qs, unquote, urlsplit  # noqa: E402
 
 import api.jira  # noqa: E402
+import api.trombone  # noqa: E402
 import api.version  # noqa: E402
 from api._http import Request, Response  # noqa: E402
 
@@ -44,6 +45,7 @@ MAX_BODY = 64 * 1024
 API_ROUTES = {
     "version": api.version,
     "jira": api.jira,  # 웹 wbs 탭의 Jira Cloud 조회 전달(허용 규칙은 api/jira.py)
+    "trombone": api.trombone,  # 웹 comments 탭의 TROMBONE 기획서 API 전달(대상은 환경변수 TROMBONE_BASE, 규칙은 api/trombone.py)
 }
 
 # 웹 정적 루트(web/) 밖이지만 웹이 함께 쓰는 파일. 로컬판과 같은 파일을 복사하지 않고 이 목록의 경로로만 연다.

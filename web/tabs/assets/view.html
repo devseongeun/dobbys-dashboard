@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>문서 보기</title>
+<!-- 의사결정 문서 뷰어(웹 버전). 로컬판은 assets_serve.py 가 폴더의 HTML 을 그대로 줬지만, 웹은 서버가 파일을 받지 않으므로
+     설정의 폴더 핸들에서 읽어 정제한 글을 아래 iframe 의 srcdoc 으로 띄운다(view.js, blob: 주소는 쓰지 않는다).
+     sandbox 규칙은 doc_frame.js SANDBOX 와 같아야 한다. -->
+<style>
+:root{--bg:#12141a;--line:#2a2f3a;--ink:#e7e9ee;--muted:#8b93a7;--dim:#646c80;--acc:#5eead4;--warn:#fcd34d}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo",sans-serif}
+[hidden]{display:none!important}
+.bar{flex:none;display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid var(--line)}
+.bar h1{margin:0;font-size:15px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.back{background:#232833;border:1px solid var(--line);color:var(--muted);border-radius:99px;padding:4px 12px;font:12px inherit;cursor:pointer;text-decoration:none;white-space:nowrap}
+.back:hover{color:var(--ink)}
+.note{flex:none;margin:0;padding:6px 20px;font-size:12px;color:var(--warn);background:rgba(251,191,36,.08);border-bottom:1px solid var(--line)}
+.note a,.note button{margin-left:8px}
+.msg{margin:0;padding:24px 20px;color:#ffc9d4}
+.msg button{margin-left:8px}
+iframe{flex:1;width:100%;border:0;background:#fff}
+</style>
+</head>
+<body>
+<header class="bar">
+  <a class="back" id="back" href="./">← 목록</a>
+  <h1 id="title">문서 보기</h1>
+  <a class="back" id="download" hidden>원본 내려받기</a>
+</header>
+<p class="note" id="note" hidden></p>
+<p class="note" id="linknote" hidden></p>
+<p class="msg" id="msg" hidden></p>
+<iframe id="doc" title="의사결정 문서" sandbox="allow-same-origin" referrerpolicy="no-referrer" hidden></iframe>
+<script type="module" src="view.js"></script>
+</body>
+</html>

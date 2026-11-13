@@ -6,6 +6,7 @@
 // 로컬판 순서는 wbs, assets, plans, comments, meetings, weekly 다(웹에 아직 없는 탭은 건너뛴다).
 import { COMMENTS_TAB } from "./comments/tab.js";
 import { WBS_TAB } from "./wbs/tab.js";
+import { MEETINGS_TAB } from "./meetings/tab.js";
 
 const ASSETS = {
   id: "assets",
@@ -80,4 +81,4 @@ const WEEKLY = {
   ],
 };
 
-export const WEB_TABS = [WBS_TAB, ASSETS, PLANS, COMMENTS_TAB, WEEKLY];
+export const WEB_TABS = [WBS_TAB, ASSETS, PLANS, COMMENTS_TAB, MEETINGS_TAB, WEEKLY];

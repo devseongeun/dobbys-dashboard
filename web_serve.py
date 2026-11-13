@@ -59,6 +59,12 @@ SHARED_FILES = {
     # plans 뷰어의 md 렌더러와 내려받기 템플릿.
     "tabs/plans/marked.umd.js": REPO_ROOT / "tabs" / "_common" / "vendor" / "marked.umd.js",
     "tabs/plans/templates/YYYY-MM-DD 계획 제목.md": REPO_ROOT / "tabs" / "plans" / "templates" / "YYYY-MM-DD 계획 제목.md",
+    # meetings 화면: 로컬판 화면 HTML·CSS·순수 함수(tests/js/meetings_lib.test.js 가 검증)와 md 렌더러.
+    # 화면 스크립트 meetings.js 와 Canvas 읽기·쓰기는 web/tabs/meetings/ 의 웹 것이다.
+    "tabs/meetings/meetings.html": REPO_ROOT / "tabs" / "meetings" / "meetings.html",
+    "tabs/meetings/meetings.css": REPO_ROOT / "tabs" / "meetings" / "meetings.css",
+    "tabs/meetings/meetings_lib.js": REPO_ROOT / "tabs" / "meetings" / "meetings_lib.js",
+    "tabs/meetings/marked.umd.js": REPO_ROOT / "tabs" / "_common" / "vendor" / "marked.umd.js",
     # assets 내려받기 템플릿.
     "tabs/assets/templates/의사결정_문서_제목.html": REPO_ROOT / "tabs" / "assets" / "templates" / "의사결정_문서_제목.html",
     # 주간 보고 내려받기 템플릿(뷰어의 표준 섹션 안내 창도 이 파일을 읽는다).

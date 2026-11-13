@@ -1,0 +1,117 @@
+/* 로컬판 tabs/comments/static/index.html 의 <style> 을 그대로 옮겼다(웹 CSP 는 인라인 <style> 을 허용하지만 화면 코드는 파일로 둔다).
+   맨 아래 '웹판에서 더한 것' 만 새로 썼다. */
+/* 라이트(기본) 색. 값은 테마 토글을 넣기 전과 같다. */
+:root{color-scheme:light;--bg:#f6f7f9;--card:#fff;--bd:#e2e5ea;--tx:#1b2027;--mut:#6b7280;--ac:#0f766e;
+  --hdr:#fff;--link:#1d4ed8;--chip-bg:#fff;--chip-tx:#374151;--on-ac:#fff;--btn-bg:#fff;--btn-tx:buttontext;--field-bg:field;--field-tx:fieldtext;
+  --ph:#fbfcfd;--row-bd:#f0f2f5;--done:#f7fbf9;--locked:#fffaf5;--answered:#f4fbf7;--picked:#eff6ff;--pri-bg:#fff6f6;--pri-mid-bg:#fffbf3;
+  --warn-bd:#fdba74;--warn-bg:#fff7ed;--warn-tx:#ea580c;--why-bd:#fed7aa;--why-tx:#9a3412;
+  --ok-bd:#6ee7b7;--ok-bg:#ecfdf5;--ans-bd:#a7f3d0;--ans-tx:#064e3b;--ans-who:#047857;
+  --full-bg:#f8f9fb;--full-tx:#374151;--good:#047857;--bad:#b91c1c}
+/* 다크 색은 업무 대시보드(의사결정·구현 진행 현황)와 같은 팔레트다. 행·배지·답글 블록 모양은 아래 다크 전용 규칙이 따로 정한다. */
+:root[data-theme=dark]{color-scheme:dark;--bg:#12141a;--card:#191c24;--bd:#2a2f3a;--tx:#e7e9ee;--mut:#8b93a7;--ac:#5eead4;
+  --hdr:#161920;--link:#7aa2ff;--chip-bg:#232833;--chip-tx:#8b93a7;--on-ac:#0b1210;--btn-bg:#232833;--btn-tx:#e7e9ee;--field-bg:#14171e;--field-tx:#e7e9ee;
+  --ph:#1c2029;--row-bd:#222733;
+  --warn-bd:rgba(251,146,60,.5);--warn-bg:rgba(251,146,60,.12);--warn-tx:#fb923c;
+  --ok-bd:rgba(74,222,128,.5);--ok-bg:rgba(74,222,128,.12);--ans-who:#4ade80;--good:#4ade80;--bad:#fb7185}
+/* 다크 전용 모양. 대시보드처럼 원색 배지 대신 옅은 틴트 배지, 행은 색 배경 대신 중립 카드 + 왼쪽 가는 막대로 구분한다. */
+:root[data-theme=dark] .chip.on,:root[data-theme=dark] button.act.primary{font-weight:600}
+:root[data-theme=dark] h1{letter-spacing:-.3px}
+:root[data-theme=dark] .decbadge{background:rgba(96,165,250,.16);color:#93c5fd;font-weight:600}
+:root[data-theme=dark] .ansbadge{background:rgba(74,222,128,.14);color:#86efac;font-weight:600}
+:root[data-theme=dark] .pribadge{background:rgba(248,113,113,.16);color:#fca5a5;font-weight:600}
+:root[data-theme=dark] .pribadge.mid{background:rgba(251,191,36,.16);color:#fcd34d}
+:root[data-theme=dark] .cat{background:color-mix(in srgb,var(--c) 30%,transparent);color:color-mix(in srgb,var(--c) 30%,#fff)}
+/* #root 를 붙여 li.done·li.pri.mid 같은 라이트 행 규칙보다 항상 앞서게 한다. */
+:root[data-theme=dark] #root li{background:transparent}
+:root[data-theme=dark] #root li:hover{background:#1c2029}
+:root[data-theme=dark] #root li.pri{box-shadow:inset 2px 0 0 #f87171}
+:root[data-theme=dark] #root li.pri.mid{box-shadow:inset 2px 0 0 #fbbf24}
+:root[data-theme=dark] #root li.picked{background:rgba(94,234,212,.07)}
+:root[data-theme=dark] #root li .head{color:#e7e9ee}
+:root[data-theme=dark] #root li.done .head,:root[data-theme=dark] #root li.locked .head{color:#7d8597;text-decoration-color:#4b5263}
+:root[data-theme=dark] .tags{color:#7d8597}
+:root[data-theme=dark] .ans{background:#1c2029;border:1px solid var(--bd);border-left:3px solid #4ade80;color:#d6dae2}
+:root[data-theme=dark] .why{background:#1c2029;border:1px solid var(--bd);border-left:3px solid #fb923c;color:#d6dae2}
+:root[data-theme=dark] .full{background:#14171e;border-left-color:#3a4150;color:#c9ced8}
+:root[data-theme=dark] .pill{background:#1c2029;color:#8b93a7}
+:root[data-theme=dark] .bx.ok{color:#4ade80}
+:root[data-theme=dark] .prog b{color:#5eead4}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.6 -apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo",sans-serif}
+/* 버튼은 body 폰트를 상속하지 않는다(UA 기본값). Claude 아티팩트로 발행하면
+   호스트가 폼 컨트롤에 자기 웹폰트를 물리고, 샌드박스에서 그 폰트가 안 떠서
+   칩·버튼 글자만 통째로 안 보였다. 폰트 스택을 여기서 못 박아 끊는다. */
+button{font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo",sans-serif}
+header{position:sticky;top:0;z-index:10;background:var(--hdr);border-bottom:1px solid var(--bd);padding:14px 20px}
+#theme{position:absolute;top:12px;right:20px}
+h1{margin:0 0 4px;font-size:17px;padding-right:96px}
+.sub{color:var(--mut);font-size:12.5px}
+.sub a{color:var(--link)}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.chip{border:1px solid var(--bd);background:var(--chip-bg);border-radius:999px;padding:4px 11px;font-size:12px;cursor:pointer;color:var(--chip-tx)}
+.chip.on{background:var(--ac);border-color:var(--ac);color:var(--on-ac)}
+.prog{margin-left:auto;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--mut)}
+.prog b{color:var(--ac);font-size:15px}
+main{max-width:1080px;margin:0 auto;padding:18px 20px 80px}
+section{background:var(--card);border:1px solid var(--bd);border-radius:10px;margin-bottom:14px;overflow:hidden}
+.ph{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;padding:12px 16px;background:var(--ph);border-bottom:1px solid var(--bd)}
+.sid{font-weight:700;font-size:12.5px;color:var(--ac);font-family:ui-monospace,Menlo,monospace}
+.pt{font-weight:700}
+.meta{color:var(--mut);font-size:12px}
+.meta a{color:var(--link);text-decoration:none}
+.meta a:hover{text-decoration:underline}
+.pill{font-size:11px;border:1px solid var(--bd);border-radius:5px;padding:1px 6px;color:var(--mut)}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;gap:11px;padding:11px 16px;border-top:1px solid var(--row-bd)}
+li:first-child{border-top:0}
+li.done{background:var(--done)}
+li.done .head{text-decoration:line-through;color:var(--mut)}
+li .bx{margin-top:3px;flex:none}
+li.locked{background:var(--locked)}
+li.locked .head{color:var(--mut)}
+.lock{width:17px;height:17px;margin-top:3px;flex:none;border:1px solid var(--warn-bd);background:var(--warn-bg);border-radius:5px;display:flex;align-items:center;justify-content:center;color:var(--warn-tx);font-weight:700;font-size:12px;line-height:1;cursor:not-allowed}
+.why{margin-top:5px;padding:6px 10px;background:var(--warn-bg);border:1px solid var(--why-bd);border-radius:6px;color:var(--why-tx);font-size:12px}
+li.answered{background:var(--answered)}
+.ansbadge{background:#047857;color:#fff;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:700}
+.pribadge{background:#b91c1c;color:#fff;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:700}
+.pribadge.mid{background:#b45309}
+li.pri{background:var(--pri-bg);box-shadow:inset 3px 0 0 #b91c1c}
+li.pri.mid{background:var(--pri-mid-bg);box-shadow:inset 3px 0 0 #b45309}
+.ans{margin-top:7px;padding:8px 11px;background:var(--ok-bg);border:1px solid var(--ans-bd);border-radius:6px;color:var(--ans-tx);font-size:12.5px;white-space:pre-wrap}
+.ans .who{display:block;font-weight:700;margin-bottom:3px;color:var(--ans-who);font-size:11.5px;white-space:normal}
+.decbadge{background:#1d4ed8;color:#fff;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:700}
+.legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:9px;font-size:12px;color:var(--mut)}
+.legend i{font-style:normal;display:inline-flex;align-items:center;gap:6px}
+.bx{width:17px;height:17px;border-radius:5px;border:1px solid var(--bd);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;line-height:1}
+.bx.ok{border-color:var(--ok-bd);background:var(--ok-bg);color:var(--ac)}
+.bx.no{border-color:var(--warn-bd);background:var(--warn-bg);color:var(--warn-tx)}
+.body{flex:1;min-width:0}
+.head{font-weight:600;cursor:pointer}
+.go{margin-left:8px;font-size:11.5px;font-weight:500;color:var(--link);text-decoration:none;white-space:nowrap}
+.go:hover{text-decoration:underline}
+.tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:3px;font-size:11.5px;color:var(--mut)}
+.cat{background:var(--c);color:#fff;border-radius:4px;padding:1px 7px;font-size:11px}
+.mono{font-family:ui-monospace,Menlo,monospace}
+.full{display:none;white-space:pre-wrap;margin-top:8px;padding:9px 12px;background:var(--full-bg);border-left:3px solid var(--bd);border-radius:0 6px 6px 0;color:var(--full-tx);font-size:13px}
+li.open .full{display:block}
+footer{max-width:1080px;margin:0 auto;padding:0 20px 40px;color:var(--mut);font-size:12px}
+button.act{border:1px solid var(--bd);background:var(--btn-bg);color:var(--btn-tx);border-radius:7px;padding:5px 11px;font-size:12px;cursor:pointer}
+button.act:disabled{opacity:.55;cursor:progress}
+button.act.primary{border-color:var(--ac);background:var(--ac);color:var(--on-ac);font-weight:700}
+.rstat{font-size:12px;color:var(--mut)}
+.rstat.ok{color:var(--good)}
+.rstat.err{color:var(--bad)}
+input.pick{width:17px;height:17px;margin:3px 0 0;flex:none;accent-color:var(--ac);cursor:pointer}
+li.picked{background:var(--picked)}
+.bar[hidden]{display:none}
+.login input{border:1px solid var(--bd);border-radius:7px;padding:5px 9px;font-size:12px;width:200px;background:var(--field-bg);color:var(--field-tx)}
+@media print{header{position:static}.chip,button.act,.rstat,.login,input.pick{display:none}.full{display:block}}
+.act.mini{padding:1px 7px;font-size:11px;margin-left:2px}
+
+/* 웹판에서 더한 것: 서버 주소 미설정 안내·'이 브라우저에 기억'·내보내기 결과 줄 */
+.banner{margin-top:10px;padding:9px 12px;border:1px solid var(--warn-bd);background:var(--warn-bg);color:var(--why-tx,var(--warn-tx));border-radius:8px;font-size:12.5px}
+.banner[hidden]{display:none}
+.banner code{font-family:ui-monospace,Menlo,monospace}
+:root[data-theme=dark] .banner{color:#fdba74}
+.login label.remember{font-size:12px;color:var(--mut);display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+.login label.remember input{width:auto}

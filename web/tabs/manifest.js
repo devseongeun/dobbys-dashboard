@@ -4,6 +4,7 @@
 // - 필드 accept: file 칸의 확장자 목록(예: [".xlsx"]), mode: 'read'(기본)·'readwrite'.
 // - 항목 validate(settings) → {key: 문구} (선택, async 가능): 칸 검사를 통과한 뒤에만 돈다.
 // 로컬판 순서는 wbs, assets, plans, comments, meetings, weekly 다(웹에 아직 없는 탭은 건너뛴다).
+import { COMMENTS_TAB } from "./comments/tab.js";
 import { WBS_TAB } from "./wbs/tab.js";
 
 const ASSETS = {
@@ -79,4 +80,4 @@ const WEEKLY = {
   ],
 };
 
-export const WEB_TABS = [WBS_TAB, ASSETS, PLANS, WEEKLY];
+export const WEB_TABS = [WBS_TAB, ASSETS, PLANS, COMMENTS_TAB, WEEKLY];

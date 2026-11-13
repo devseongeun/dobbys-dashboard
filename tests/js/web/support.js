@@ -101,9 +101,17 @@ export function fileHandle(path, options = {}) {
     kind: "file",
     name: path.split("/").at(-1),
     path,
-    // 브라우저처럼 File(Blob: arrayBuffer·text·slice, lastModified)을 준다.
+    // 브라우저 File 처럼 name·size·lastModified·arrayBuffer·text·slice 를 준다. 펼쳐 쓰는 도구({...file}, weekly_support.js)가
+    // 메서드를 잃지 않게 원형이 아닌 자기 속성으로 둔다.
     async getFile() {
-      return new File([readFileSync(handle.path)], handle.name, { lastModified: Math.floor(statSync(handle.path).mtimeMs) });
+      const bytes = readFileSync(handle.path);
+      const blob = new Blob([bytes]);
+      return {
+        name: handle.name, size: bytes.byteLength, type: "", lastModified: Math.floor(statSync(handle.path).mtimeMs),
+        async arrayBuffer() { return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength); },
+        async text() { return bytes.toString("utf-8"); },
+        slice: (start, end, type) => blob.slice(start, end, type),
+      };
     },
     async createWritable({ keepExistingData = false } = {}) {
       const target = handle.path;

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>주간 보고 뷰어</title>
+<!-- 주간 보고 뷰어(웹 버전). 로컬판 tabs/weekly/generate_viewer.py viewer_page 의 화면 틀과 같다. 로컬판은 뷰어 HTML 파일을
+     구워 두었지만, 웹은 설정의 폴더 핸들(여러 개)을 브라우저가 직접 읽어 이 화면을 메모리에서 채운다(weekly.js).
+     인라인 스크립트는 CSP(script-src 'self') 에서 막혀 weekly.js 모듈로 뺐다. Google Fonts 링크는 CSP 밖이라 뺐다(시스템 글꼴). -->
+<link rel="stylesheet" href="weekly.css">
+<link rel="stylesheet" href="weekly_web.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#">주간 보고 뷰어</a>
+  <div class="tools">
+    <span class="hint" id="hint"></span>
+    <div class="search"><input id="q" type="search" placeholder="전체 회차 검색" autocomplete="off">
+    <button class="clear" id="qclear" hidden aria-label="검색 지우기">×</button></div>
+    <button class="iconbtn" id="refreshBtn" type="button" title="주간 보고 폴더를 다시 읽습니다" aria-label="최신화">↻ <span class="refresh-label">최신화</span></button><span class="refresh-toast" id="refreshStatus" hidden></span>
+    <button class="guide-open" type="button" data-guide-open>표준 섹션 안내</button>
+    <button class="iconbtn" id="themeBtn" title="테마 전환">◐</button>
+  </div>
+</header>
+<div class="web-banner" id="banner" hidden></div>
+<div class="app">
+  <nav class="rail" id="rail" aria-label="회차 목록"></nav>
+  <main class="viewer-pane" id="pane"></main>
+</div>
+<div id="guide-slot"></div>
+<script type="module" src="weekly.js"></script>
+</body>
+</html>
